@@ -17,6 +17,8 @@ import OwnerReports from './OwnerReports'
 import { ORDER_IDLE_MS, STATION_IDLE_MS, TERMINAL_NAMES, listNotSent } from './lib'
 import { useIdle } from './useIdle'
 import { FeedbackHost, confirmDialog } from './feedback'
+import ScreenKeyboard from './ScreenKeyboard'
+import { Icon, IconName } from './icons'
 
 type View = 'home' | 'waiter' | 'queue' | 'staff' | 'stock' | 'approvals' | 'handover' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner'
 const isTerminal = TERMINAL_CODE !== 'OFFICE'
@@ -72,6 +74,7 @@ export default function App() {
   return (
     <div className="min-h-full">
       <FeedbackHost />
+      {isTerminal && <ScreenKeyboard />}
       <TopBar terminal={TERMINAL_NAMES[TERMINAL_CODE] ?? TERMINAL_CODE} unsent={unsent}
               who={profile ? `${profile.full_name} (${profile.roles.join(', ')})` : undefined}
               onSignOut={signedIn ? switchUser : undefined} />
@@ -81,28 +84,46 @@ export default function App() {
           <div className="mt-4"><button className="h-14 rounded-xl bg-slate-700 px-6" onClick={lock}>Sign out</button></div>
         </div>
       )}
-      {signedIn && profile && view === 'home' && (
-        <div className="mx-auto flex max-w-xl flex-col gap-4 p-8">
-          <h1 className="text-3xl font-bold">Hello, {profile.full_name}</h1>
-          {can(profile, 'tab.open') && <Btn onClick={() => setView('waiter')}>Take orders</Btn>}
-          {stationPerms.includes('kitchen') && <Btn onClick={() => { setQueueStations(['kitchen']); setView('queue') }}>Kitchen queue</Btn>}
-          {stationPerms.includes('choma') && <Btn onClick={() => { setQueueStations(['choma']); setView('queue') }}>Choma queue</Btn>}
-          {stationPerms.includes('bar') && <Btn onClick={() => { setQueueStations(['bar']); setView('queue') }}>Bar queue</Btn>}
-          {stationPerms.length > 1 && <Btn kind="ghost" onClick={() => { setQueueStations(stationPerms); setView('queue') }}>All queues</Btn>}
-          {(stationPerms.includes('bar') || can(profile, 'stock.view_all')) && <Btn kind="ghost" onClick={() => setView('stock')}>Bar stock</Btn>}
-          {can(profile, 'approval.grant') && <Btn kind="ghost" onClick={() => setView('approvals')}>Approvals</Btn>}
-          {can(profile, 'payment.record') && !can(profile, 'recon.view_all') && <Btn kind="ghost" onClick={() => setView('handover')}>Hand in cash</Btn>}
-          {can(profile, 'recon.view_all') && <Btn kind="ghost" onClick={() => setView('recon')}>Reconciliation</Btn>}
-          {(can(profile, 'goods.receive') || can(profile, 'supplier.manage')) && <Btn kind="ghost" onClick={() => setView('purchasing')}>Purchasing</Btn>}
-          {can(profile, 'expense.record') && <Btn kind="ghost" onClick={() => setView('expenses')}>Cash expenses</Btn>}
-          {(can(profile, 'stock.view_all') || stationPerms.includes('kitchen') || stationPerms.includes('choma')) && <Btn kind="ghost" onClick={() => setView('stockroom')}>Stock room</Btn>}
-          {(can(profile, 'report.view') || can(profile, 'report.build')) && <Btn kind="ghost" onClick={() => setView('reports')}>Reports &amp; sign-off</Btn>}
-          {(can(profile, 'report.sales') || can(profile, 'report.profit')) && <Btn kind="ghost" onClick={() => setView('owner')}>Owner reports</Btn>}
-          {can(profile, 'staff.manage') && <Btn kind="ghost" onClick={() => setView('staff')}>Staff</Btn>}
-          {!can(profile, 'tab.open') && stationPerms.length === 0 && !can(profile, 'staff.manage') &&
-            <div className="text-xl text-slate-300">No screens are available for your role yet.</div>}
-        </div>
-      )}
+      {signedIn && profile && view === 'home' && (() => {
+        const q = (stations: string[]) => () => { setQueueStations(stations); setView('queue') }
+        type T = { show: boolean; icon: IconName; label: string; go: () => void }
+        const work: T[] = [
+          { show: can(profile, 'tab.open'), icon: 'orders', label: 'Take orders', go: () => setView('waiter') },
+          { show: stationPerms.includes('kitchen'), icon: 'kitchen', label: 'Kitchen queue', go: q(['kitchen']) },
+          { show: stationPerms.includes('choma'), icon: 'choma', label: 'Choma queue', go: q(['choma']) },
+          { show: stationPerms.includes('bar'), icon: 'bar', label: 'Bar queue', go: q(['bar']) },
+          { show: stationPerms.length > 1, icon: 'queues', label: 'All queues', go: q(stationPerms) },
+        ].filter(t => t.show)
+        const manage: T[] = [
+          { show: stationPerms.includes('bar') || can(profile, 'stock.view_all'), icon: 'stock', label: 'Bar stock', go: () => setView('stock') },
+          { show: can(profile, 'approval.grant'), icon: 'approvals', label: 'Approvals', go: () => setView('approvals') },
+          { show: can(profile, 'payment.record') && !can(profile, 'recon.view_all'), icon: 'cash', label: 'Hand in cash', go: () => setView('handover') },
+          { show: can(profile, 'recon.view_all'), icon: 'recon', label: 'Reconciliation', go: () => setView('recon') },
+          { show: can(profile, 'goods.receive') || can(profile, 'supplier.manage'), icon: 'purchasing', label: 'Purchasing', go: () => setView('purchasing') },
+          { show: can(profile, 'expense.record'), icon: 'expenses', label: 'Cash expenses', go: () => setView('expenses') },
+          { show: can(profile, 'stock.view_all') || stationPerms.includes('kitchen') || stationPerms.includes('choma'), icon: 'stockroom', label: 'Stock room', go: () => setView('stockroom') },
+          { show: can(profile, 'report.view') || can(profile, 'report.build'), icon: 'reports', label: 'Reports & sign-off', go: () => setView('reports') },
+          { show: can(profile, 'report.sales') || can(profile, 'report.profit'), icon: 'owner', label: 'Owner reports', go: () => setView('owner') },
+          { show: can(profile, 'staff.manage'), icon: 'staff', label: 'Staff', go: () => setView('staff') },
+        ].filter(t => t.show)
+        const tile = (t: T, primary: boolean) => (
+          <button key={t.label} onClick={t.go}
+            className={`flex min-h-[6.5rem] flex-col items-start justify-between gap-3 rounded-2xl p-4 text-left text-xl font-semibold active:opacity-80 ${primary ? 'bg-amber-500 text-on-accent' : 'bg-slate-800 text-slate-100 ring-1 ring-slate-600'}`}>
+            <Icon name={t.icon} className="h-9 w-9" />
+            <span className="leading-tight">{t.label}</span>
+          </button>
+        )
+        const grid = 'grid grid-cols-[repeat(auto-fill,minmax(11.5rem,1fr))] gap-3'
+        return (
+          <div className="mx-auto flex max-w-5xl flex-col gap-5 p-6">
+            <h1 className="text-3xl font-bold">Hello, {profile.full_name}</h1>
+            {work.length > 0 && <section><h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-400">Work</h2><div className={grid}>{work.map(t => tile(t, true))}</div></section>}
+            {manage.length > 0 && <section><h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-400">Manage</h2><div className={grid}>{manage.map(t => tile(t, false))}</div></section>}
+            {work.length === 0 && manage.length === 0 &&
+              <div className="text-xl text-slate-300">No screens are available for your role yet.</div>}
+          </div>
+        )
+      })()}
       {signedIn && profile && view === 'waiter' && <Waiter profile={profile} onDone={home} onLock={lock} />}
       {signedIn && profile && view === 'queue' && <Queue profile={profile} stations={queueStations} onDone={home} />}
       {signedIn && profile && view === 'stock' && <BarStock profile={profile} onDone={home} />}

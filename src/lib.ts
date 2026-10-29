@@ -18,7 +18,7 @@ export const ORDER_IDLE_MS = 30_000
 export const STATION_IDLE_MS = 300_000
 
 // ───────────── Order drafts, stored per staff member and per tab ─────────────
-export type CartLine = { product_id: string; name: string; price: number; qty: number }
+export type CartLine = { product_id: string; name: string; price: number; qty: number; notes?: string }
 export type Draft = { key: string; lines: CartLine[]; state: 'editing' | 'not_sent' }
 
 const PREFIX = 'draft:'
@@ -47,3 +47,15 @@ export function listNotSent(staff?: string): { staff: string; tab: string; draft
   } catch { /* ignore */ }
   return out
 }
+
+// ───────────── Each waiter's most-used products (kept on this device only) ─────────────
+const fkey = (staff: string) => `freq:${staff}`
+export function loadFreq(staff: string): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(fkey(staff)) ?? '{}') as Record<string, number> } catch { return {} }
+}
+export function bumpFreq(staff: string, productId: string) {
+  try { const f = loadFreq(staff); f[productId] = (f[productId] ?? 0) + 1; localStorage.setItem(fkey(staff), JSON.stringify(f)) } catch { /* ignore */ }
+}
+
+// Quick notes shown as one-tap chips on the order screen
+export const QUICK_NOTES = ['No ice', 'With ice', 'Cold', 'Room temp', 'Extra hot', 'Well done', 'Medium', 'Less salt', 'No onions', 'Takeaway']

@@ -54,6 +54,17 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
   items.forEach(i => orders.set(i.order_id, [...(orders.get(i.order_id) ?? []), i]))
   const mins = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
 
+  const count = (f: (i: QItem) => boolean) => items.filter(f).length
+  const lateOrders = Array.from(orders.values()).filter(g => mins(g.reduce((m, i) => i.created_at < m ? i.created_at : m, g[0].created_at)) >= LATE_AMBER_MIN).length
+  const summary: [string, number, string][] = [
+    ['New', count(i => i.status === 'new'), 'bg-amber-600 text-on-accent'],
+    ['In progress', count(i => i.status === 'accepted' || i.status === 'preparing'), 'bg-slate-600'],
+    ['Ready', count(i => i.status === 'ready'), 'bg-green-700'],
+    ['Late', lateOrders, lateOrders > 0 ? 'bg-red-700' : 'bg-slate-700'],
+  ]
+  const CHIP: Record<string, string> = {
+    new: 'bg-amber-600 text-on-accent', accepted: 'bg-slate-600', preparing: 'bg-slate-600', ready: 'bg-green-700',
+  }
   return (
     <div className="p-4">
       <div className="mb-4 flex items-center gap-3">
@@ -64,6 +75,13 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
         {stations.length > 1 && <Btn kind={sel.length > 1 ? 'primary' : 'ghost'} onClick={() => setSel(stations)}>All</Btn>}
         <Btn kind="ghost" onClick={onDone}>Home</Btn>
       </div>
+      <div className="mb-4 flex flex-wrap gap-2">
+        {summary.map(([label, n, tone]) => (
+          <span key={label} className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-lg font-semibold ${tone}`}>
+            {label}<span className="text-2xl font-bold tabular-nums">{n}</span>
+          </span>
+        ))}
+      </div>
       {msg && <div className="mb-3 rounded-lg bg-red-700 p-3 text-lg font-semibold">{msg}</div>}
       {orders.size === 0 && <div className="mt-16 text-center text-3xl text-slate-400">No open orders</div>}
       <div className="grid-queue">
@@ -73,23 +91,26 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
           const tone = age >= LATE_RED_MIN ? 'border-red-500 bg-red-950' : age >= LATE_AMBER_MIN ? 'border-amber-500 bg-amber-950' : 'border-slate-600 bg-slate-800'
           return (
             <div key={first.order_id} className={`rounded-xl border-4 p-3 ${tone} ${age >= LATE_RED_MIN ? 'animate-pulse' : ''}`}>
-              <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold">#{first.ticket_no}</span>
-                <span className="text-xl">{first.table_number ? `Table ${first.table_number}` : first.customer_name}</span>
-                <span className="ml-auto text-xl font-semibold tabular-nums">{age} min{age >= LATE_AMBER_MIN ? ' LATE' : ''}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-4xl font-bold">#{first.ticket_no}</span>
+                <span className="line-clamp-2 min-w-0 flex-1 break-words text-2xl font-semibold leading-tight">{first.table_number ? `Table ${first.table_number}` : first.customer_name}</span>
+                <span className={`shrink-0 rounded-lg px-2.5 py-1 text-xl font-bold tabular-nums ${age >= LATE_RED_MIN ? 'bg-red-600 text-white' : age >= LATE_AMBER_MIN ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>
+                  {age} min{age >= LATE_AMBER_MIN ? ' · LATE' : ''}
+                </span>
               </div>
-              <div className="mb-2 text-slate-300">{first.waiter_name}</div>
+              <div className="mb-2 text-lg text-slate-300">{first.waiter_name}</div>
               <div className="space-y-2">
                 {group.map(i => {
                   const a = NEXT[i.status]
                   const elsewhere = !!i.claimed_terminal && i.claimed_terminal !== TERMINAL_CODE
                     && i.status !== 'new' && !can(profile, 'tab.view_all')
                   return (
-                    <div key={i.item_id} className="flex items-center gap-2 rounded-lg bg-slate-900/60 p-2">
-                      <div className="flex-1 text-xl leading-tight">{i.qty} × {i.product_name}
-                        {i.notes && <div className="text-base text-amber-300">{i.notes}</div>}
-                        <div className="text-sm text-slate-400">
-                          {elsewhere ? `Being prepared at ${TERMINAL_NAMES[i.claimed_terminal!] ?? i.claimed_terminal}` : i.status.toUpperCase()}
+                    <div key={i.item_id} className={`flex items-center gap-2 rounded-lg p-2 ${i.status === 'ready' ? 'bg-green-800' : 'bg-slate-900/60'}`}>
+                      <div className="min-w-0 flex-1 text-2xl font-semibold leading-tight">{i.qty} × {i.product_name}
+                        {i.notes && <div className="mt-0.5 text-lg font-bold text-amber-300">⚠ {i.notes}</div>}
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                          <span className={`rounded-full px-2.5 py-0.5 font-bold tracking-wide ${CHIP[i.status] ?? 'bg-slate-600'}`}>{i.status.toUpperCase()}</span>
+                          {elsewhere && <span className="text-slate-300">Being prepared at {TERMINAL_NAMES[i.claimed_terminal!] ?? i.claimed_terminal}</span>}
                         </div>
                       </div>
                       {a && <button disabled={elsewhere || busyId === i.item_id} onClick={() => act(i)}

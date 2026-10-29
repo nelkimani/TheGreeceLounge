@@ -76,6 +76,13 @@ body { -webkit-tap-highlight-color: transparent; }
 html[data-device="terminal"] body { user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
 html[data-device="terminal"] input, html[data-device="terminal"] textarea { user-select: text; -webkit-user-select: text; }
 
+input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }   /* we draw our own clear button */
+
+/* Touch terminals: the tiny up/down arrows on number boxes are unusable by finger; the keypad replaces them. */
+html[data-device="terminal"] input[type="number"]::-webkit-inner-spin-button,
+html[data-device="terminal"] input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+html[data-device="terminal"] input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
 /* Visible keyboard focus (office / laptop). Touch never triggers :focus-visible on buttons. */
 :focus-visible { outline: 3px solid rgb(var(--amber-500)); outline-offset: 2px; }
 input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 0; }

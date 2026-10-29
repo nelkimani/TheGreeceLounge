@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, TERMINAL_CODE, Profile, can } from './supabase'
 import { AlphaKeys, Btn } from './ui'
-import { CartLine, Draft, LOCK_AFTER_SEND, clearDraft, isNetworkError, kes, listNotSent, loadDraft, saveDraft, uid } from './lib'
+import { Icon } from './icons'
+import { confirmDialog } from './feedback'
+import { CartLine, Draft, LOCK_AFTER_SEND, QUICK_NOTES, bumpFreq, clearDraft, isNetworkError, kes, listNotSent, loadDraft, loadFreq, saveDraft, uid } from './lib'
 import TabHub from './TabHub'
 import Pay from './Pay'
 
@@ -61,7 +63,7 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
     flushing.current = true
     for (const u of listNotSent(profile.id)) {
       const { error } = await supabase.rpc('submit_order', {
-        p_tab: u.tab, p_items: u.draft.lines.map(l => ({ product_id: l.product_id, qty: l.qty })),
+        p_tab: u.tab, p_items: u.draft.lines.map(l => ({ product_id: l.product_id, qty: l.qty, ...(l.notes ? { notes: l.notes } : {}) })),
         p_terminal: TERMINAL_CODE, p_key: u.draft.key })
       if (!error) clearDraft(profile.id, u.tab)
       else if (!isNetworkError(error)) saveDraft(profile.id, u.tab, { ...u.draft, state: 'editing' })  // server refused: let the person fix it
@@ -136,36 +138,53 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
   }
 
   const named = cards.filter(c => !c.table_number)
+  const BILL: Record<string, string> = { bill_requested: 'BILL', partially_paid: 'PART PAID' }
+  const tabTile = (c: Card, title: string, key: string, onClick: () => void) => {
+    const mine = c.waiter_id === profile.id
+    return (
+      <button key={key} onClick={onClick}
+        className={`flex h-full flex-col justify-between rounded-xl p-3 text-left active:opacity-80 ${mine ? 'bg-amber-600 text-on-accent' : 'bg-slate-600'}`}>
+        <span className="line-clamp-2 break-words text-2xl font-bold leading-tight">{title}</span>
+        <div className="flex min-w-0 items-end justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-base">{mine ? 'Your tab' : c.waiter_name}</div>
+            <div className="text-lg font-semibold">{kes(c.balance + c.pending_total)}</div>
+          </div>
+          {BILL[c.status] && <span className="shrink-0 rounded bg-slate-900 px-2 py-0.5 text-xs font-bold tracking-wide text-slate-100">{BILL[c.status]}</span>}
+        </div>
+      </button>
+    )
+  }
+  const dot = (cls: string) => <span className={`inline-block h-3 w-3 rounded-full ${cls}`} />
   return (
     <div className="p-4">
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-3 flex items-center gap-3">
         <h2 className="mr-auto text-3xl font-bold">Tables</h2>
         <Btn kind="ghost" onClick={onDone}>Home</Btn>
         <Btn onClick={() => setNaming(true)}>+ Takeaway / named tab</Btn>
+      </div>
+      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-base text-slate-300">
+        <span className="flex items-center gap-2">{dot('bg-green-400')} Free</span>
+        <span className="flex items-center gap-2">{dot('bg-amber-600')} Your tab</span>
+        <span className="flex items-center gap-2">{dot('bg-slate-500')} Another waiter</span>
+        <span className="flex items-center gap-2"><span className="rounded bg-slate-700 px-1.5 text-xs font-bold">BILL</span> Bill requested</span>
       </div>
       {err && <div className="mb-3 rounded-lg bg-red-700 p-3 text-lg font-semibold">{err}</div>}
       <div className="grid-tables">
         {tables.map(t => {
           const c = cards.find(x => x.table_number === t.number)
-          const mine = c?.waiter_id === profile.id
           const other = !c ? taken.find(x => x.table_number === t.number && x.tab_id) : undefined
+          if (c) return tabTile(c, `Table ${t.number}`, t.id, () => openTable(t))
           return (
             <button key={t.id} onClick={() => openTable(t)}
-              className={`h-full rounded-xl p-3 text-left active:opacity-80 ${c ? (mine ? 'bg-amber-600 text-on-accent' : 'bg-slate-600') : other ? 'bg-slate-700 opacity-70' : 'bg-slate-800 border-2 border-slate-600'}`}>
-              <div className="text-2xl font-bold">Table {t.number}</div>
-              {c ? <div className="text-lg">{c.waiter_name} · {kes(c.balance + c.pending_total)}</div>
-                 : other ? <div className="text-lg text-slate-300">In use · {other.waiter_name}</div>
-                 : <div className="text-lg text-slate-400">Free</div>}
+              className={`flex h-full flex-col justify-between rounded-xl p-3 text-left active:opacity-80 ${other ? 'bg-slate-700 opacity-70' : 'border-2 border-green-400/60 bg-slate-800'}`}>
+              <div className="text-2xl font-bold leading-tight">Table {t.number}</div>
+              {other ? <div className="truncate text-base text-slate-300">In use · {other.waiter_name}</div>
+                     : <div className="flex items-center gap-2 text-lg font-semibold text-green-400">{dot('bg-green-400')} Free</div>}
             </button>
           )
         })}
-        {named.map(c => (
-          <button key={c.tab_id} onClick={() => { setScreen('hub'); setActive({ id: c.tab_id, label: c.customer_name ?? 'Tab' }) }}
-            className="h-full rounded-xl bg-amber-600 p-3 text-left text-on-accent active:opacity-80">
-            <div className="truncate text-2xl font-bold">{c.customer_name}</div>
-            <div className="text-lg">{c.waiter_name} · {kes(c.balance + c.pending_total)}</div>
-          </button>
-        ))}
+        {named.map(c => tabTile(c, c.customer_name ?? 'Tab', c.tab_id, () => { setScreen('hub'); setActive({ id: c.tab_id, label: c.customer_name ?? 'Tab' }) }))}
       </div>
     </div>
   )
@@ -177,15 +196,26 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
   const [lines, setLines] = useState<CartLine[]>(initial?.lines ?? [])
   const [state, setState] = useState<Draft['state']>(initial?.state ?? 'editing')
   const key = useRef(initial?.key ?? uid())
-  const [cat, setCat] = useState('All')
+  const MINE = '★ Mine'
+  const freq = useMemo(() => loadFreq(profile.id), [profile.id])      // this waiter's most-used products, counted on this device
+  const topIds = useMemo(() => Object.entries(freq).sort((a, b) => b[1] - a[1]).map(e => e[0])
+    .filter(id => products.some(p => p.id === id)).slice(0, 12), [freq, products])
+  const [cat, setCat] = useState(topIds.length >= 4 ? MINE : 'All')
+  const [q, setQ] = useState('')
+  const [noteFor, setNoteFor] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [ticket, setTicket] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
   const [items, setItems] = useState<TabItem[]>([])
 
-  const cats = useMemo(() => ['All', ...Array.from(new Set(products.map(p => p.category?.name ?? 'Other')))], [products])
-  const shown = products.filter(p => cat === 'All' || (p.category?.name ?? 'Other') === cat)
+  const cats = useMemo(() => [...(topIds.length >= 4 ? [MINE] : []), 'All', ...Array.from(new Set(products.map(p => p.category?.name ?? 'Other')))], [products, topIds])
+  const query = q.trim().toLowerCase()
+  const shown = query ? products.filter(p => p.name.toLowerCase().includes(query))
+    : cat === MINE ? topIds.map(id => products.find(p => p.id === id)!)
+    : products.filter(p => cat === 'All' || (p.category?.name ?? 'Other') === cat)
+  const inCart = new Map(lines.map(l => [l.product_id, l.qty]))
+  const count = lines.reduce((s, l) => s + l.qty, 0)
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0)
 
   const persist = (next: CartLine[], st: Draft['state'] = state) => {
@@ -198,6 +228,13 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
     const i = lines.findIndex(l => l.product_id === p.id)
     persist(i >= 0 ? lines.map((l, j) => j === i ? { ...l, qty: l.qty + 1 } : l)
                    : [...lines, { product_id: p.id, name: p.name, price: Number(p.selling_price), qty: 1 }])
+    bumpFreq(profile.id, p.id)
+  }
+  const setNote = (id: string, notes: string) => {
+    persist(lines.map(l => l.product_id === id ? { ...l, notes: notes || undefined } : l)); setNoteFor(null)
+  }
+  const clearOrder = async () => {
+    if (await confirmDialog({ title: 'Clear this order?', message: 'All items not yet sent will be removed.', confirmText: 'Clear order', danger: true })) persist([])
   }
   const step = (id: string, d: number) => {
     if (state === 'not_sent') return
@@ -221,7 +258,7 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
     if (sending || lines.length === 0) return          // in-flight lock: double taps do nothing
     setSending(true); setErr('')
     const { data, error } = await supabase.rpc('submit_order', {
-      p_tab: tab.id, p_items: lines.map(l => ({ product_id: l.product_id, qty: l.qty })),
+      p_tab: tab.id, p_items: lines.map(l => ({ product_id: l.product_id, qty: l.qty, ...(l.notes ? { notes: l.notes } : {}) })),
       p_terminal: TERMINAL_CODE, p_key: key.current })
     if (error) {
       if (isNetworkError(error)) {
@@ -254,49 +291,119 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
   }
 
   const btn = 'h-[3.75rem] w-full rounded-xl px-3 text-left text-xl font-semibold'
+  const CHIP: Record<string, string> = {
+    new: 'bg-amber-600 text-on-accent', accepted: 'bg-slate-600', preparing: 'bg-slate-600', ready: 'bg-green-700', served: 'bg-slate-700 text-slate-400',
+  }
+  const noteLine = lines.find(l => l.product_id === noteFor)
   return (
     <div className="order-layout fill-screen">
       <div className="flex flex-col gap-2 overflow-y-auto">
         <Btn kind="ghost" onClick={onBack} className="!h-[3.75rem]">← Tables</Btn>
         {cats.map(c => (
-          <button key={c} onClick={() => setCat(c)}
-            className={`${btn} ${cat === c ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{c}</button>
+          <button key={c} onClick={() => { setCat(c); setQ('') }}
+            className={`${btn} ${cat === c && !query ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{c}</button>
         ))}
       </div>
-      <div className="grid-products overflow-y-auto">
-        {shown.map(p => (
-          <button key={p.id} onClick={() => add(p)}
-            className="rounded-xl bg-slate-700 p-2 text-left active:bg-slate-500">
-            <div className="line-clamp-2 text-lg font-semibold leading-tight">{p.name}</div>
-            <div className="text-amber-400">{kes(p.selling_price)}</div>
-          </button>
-        ))}
+
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" className="h-6 w-6" /></span>
+          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search products" aria-label="Search products"
+            autoComplete="off" className="h-[3.25rem] w-full rounded-xl border-2 border-slate-600 bg-slate-800 pl-11 pr-14 text-xl" />
+          {q && <button onClick={() => setQ('')} aria-label="Clear search"
+            className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg bg-slate-700"><Icon name="close" className="h-5 w-5" /></button>}
+        </div>
+        <div className="grid-products min-h-0 flex-1 overflow-y-auto">
+          {shown.length === 0 && <div className="col-span-full pt-8 text-center text-xl text-slate-400">{query ? `No products match "${q.trim()}"` : 'No products here yet'}</div>}
+          {shown.map(p => {
+            const n = inCart.get(p.id) ?? 0
+            return (
+              <button key={p.id} onClick={() => add(p)}
+                className={`relative rounded-xl bg-slate-700 p-2 text-left transition-transform active:scale-[0.97] active:bg-slate-500 ${n ? 'ring-2 ring-amber-500' : ''}`}>
+                <div className="line-clamp-2 pr-6 text-lg font-semibold leading-tight">{p.name}</div>
+                <div className="text-amber-400">{kes(p.selling_price)}</div>
+                {n > 0 && <span className="absolute right-1.5 top-1.5 flex h-7 min-w-[1.75rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-sm font-bold text-on-accent">{n}</span>}
+              </button>
+            )
+          })}
+        </div>
       </div>
-      <div className="flex flex-col gap-2 overflow-hidden rounded-xl bg-slate-800 p-3">
-        <div className="text-2xl font-bold">{tab.label}</div>
+
+      <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-slate-800 p-3">
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 truncate text-2xl font-bold">{tab.label}</div>
+          {lines.length > 0 && state !== 'not_sent' &&
+            <button onClick={clearOrder} className="h-10 shrink-0 rounded-lg bg-slate-700 px-3 text-base font-semibold">Clear</button>}
+        </div>
         {state === 'not_sent' && <div className="rounded bg-red-700 p-2 font-semibold">NOT SENT – waiting to retry</div>}
         <div className="flex-1 space-y-2 overflow-y-auto">
+          <div className="flex items-center justify-between text-sm font-semibold uppercase tracking-wider text-slate-400">
+            <span>New order</span><span>{count} item{count === 1 ? '' : 's'}</span>
+          </div>
+          {lines.length === 0 && <div className="rounded-lg border-2 border-dashed border-slate-600 p-4 text-center text-lg text-slate-400">Tap a product to add it</div>}
           {lines.map(l => (
-            <div key={l.product_id} className="flex items-center gap-2">
-              <div className="flex-1 text-lg leading-tight">{l.name}<div className="text-sm text-slate-400">{kes(l.price * l.qty)}</div></div>
-              <button className="h-14 w-14 rounded-lg bg-slate-600 text-3xl" onClick={() => step(l.product_id, -1)}>−</button>
-              <span className="w-8 text-center text-2xl">{l.qty}</span>
-              <button className="h-14 w-14 rounded-lg bg-slate-600 text-3xl" onClick={() => step(l.product_id, 1)}>+</button>
+            <div key={l.product_id} className="rounded-xl bg-slate-900/50 p-2">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1 text-lg font-semibold leading-tight">{l.name}</div>
+                <div className="shrink-0 text-lg font-semibold">{kes(l.price * l.qty)}</div>
+              </div>
+              <div className="text-sm text-slate-400">{kes(l.price)} each</div>
+              {l.notes && <div className="mt-1 rounded bg-amber-950 px-2 py-1 text-base text-amber-300">{l.notes}</div>}
+              <div className="mt-2 flex items-center gap-1.5">
+                <button aria-label={`Less ${l.name}`} className="h-12 w-12 rounded-lg bg-slate-600 text-3xl" onClick={() => step(l.product_id, -1)}>−</button>
+                <span className="w-8 text-center text-2xl font-bold">{l.qty}</span>
+                <button aria-label={`More ${l.name}`} className="h-12 w-12 rounded-lg bg-slate-600 text-3xl" onClick={() => step(l.product_id, 1)}>+</button>
+                <span className="flex-1" />
+                <button aria-label={`Add note to ${l.name}`} className={`flex h-12 w-12 items-center justify-center rounded-lg ${l.notes ? 'bg-amber-500 text-on-accent' : 'bg-slate-600'}`} onClick={() => setNoteFor(l.product_id)}><Icon name="note" className="h-6 w-6" /></button>
+                <button aria-label={`Remove ${l.name}`} className="flex h-12 w-12 items-center justify-center rounded-lg bg-slate-600" onClick={() => step(l.product_id, -l.qty)}><Icon name="trash" className="h-6 w-6" /></button>
+              </div>
             </div>
           ))}
-          {items.length > 0 && <div className="border-t border-slate-600 pt-2 text-sm uppercase text-slate-400">On this tab</div>}
+          {items.length > 0 && <div className="border-t border-slate-600 pt-2 text-sm font-semibold uppercase tracking-wider text-slate-400">Already on this tab</div>}
           {items.map(i => (
-            <div key={i.item_id} className={`flex items-center gap-2 rounded p-1 ${i.status === 'ready' ? 'bg-green-800' : ''}`}>
-              <div className="flex-1 text-base">{i.qty} × {i.product_name}<div className="text-sm text-slate-300">{STATUS_TEXT[i.status] ?? i.status}</div></div>
-              {i.status === 'ready' && <button className="h-12 rounded-lg bg-green-600 px-3 font-semibold" onClick={() => markServed(i.item_id)}>Served</button>}
+            <div key={i.item_id} className={`flex items-center gap-2 rounded-lg p-1.5 ${i.status === 'ready' ? 'bg-green-800' : ''}`}>
+              <div className="min-w-0 flex-1 text-base leading-tight">{i.qty} × {i.product_name}</div>
+              {i.status === 'ready'
+                ? <button className="h-12 shrink-0 rounded-lg bg-green-600 px-3 font-semibold" onClick={() => markServed(i.item_id)}>Served</button>
+                : <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-sm font-semibold ${CHIP[i.status] ?? 'bg-slate-600'}`}>{STATUS_TEXT[i.status] ?? i.status}</span>}
             </div>
           ))}
         </div>
         {err && <div className="rounded bg-red-700 p-2 font-semibold">{err}</div>}
-        <div className="text-4xl font-bold">{kes(total)}</div>
+        <div className="flex items-baseline justify-between border-t border-slate-600 pt-2">
+          <span className="text-lg text-slate-400">Total</span>
+          <span className="text-4xl font-bold">{kes(total)}</span>
+        </div>
         <Btn onClick={send} disabled={sending || lines.length === 0}>
           {sending ? 'Sending…' : state === 'not_sent' ? 'Retry send' : 'SEND ORDER'}
         </Btn>
+      </div>
+      {noteLine && <NoteSheet name={noteLine.name} initial={noteLine.notes ?? ''} onSave={t => setNote(noteLine.product_id, t)} onClose={() => setNoteFor(null)} />}
+    </div>
+  )
+}
+
+// One-tap quick notes (No ice, Well done ...) plus a free-text box that uses the on-screen keyboard.
+function NoteSheet({ name, initial, onSave, onClose }: { name: string; initial: string; onSave: (t: string) => void; onClose: () => void }) {
+  const [text, setText] = useState(initial)
+  const parts = text.split(',').map(s => s.trim()).filter(Boolean)
+  const toggle = (n: string) => setText((parts.includes(n) ? parts.filter(p => p !== n) : [...parts, n]).join(', '))
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 p-4 pt-6" role="dialog" aria-modal="true" aria-label="Item note">
+      <div className="flex w-[min(40rem,96vw)] flex-col gap-3 rounded-2xl bg-slate-800 p-5">
+        <h2 className="text-2xl font-bold">Note for {name}</h2>
+        <div className="flex flex-wrap gap-2">
+          {QUICK_NOTES.map(n => (
+            <button key={n} onClick={() => toggle(n)}
+              className={`h-12 rounded-full px-4 text-lg font-semibold ${parts.includes(n) ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{n}</button>
+          ))}
+        </div>
+        <input value={text} maxLength={80} onChange={e => setText(e.target.value)} placeholder="Or type a note" aria-label="Note"
+          className="h-[3.25rem] rounded-xl border-2 border-slate-600 bg-slate-900 px-3 text-xl" />
+        <div className="flex gap-3">
+          <Btn kind="ghost" className="flex-1" onClick={onClose}>Cancel</Btn>
+          <Btn className="flex-1" onClick={() => onSave(text.trim())}>Save note</Btn>
+        </div>
       </div>
     </div>
   )
