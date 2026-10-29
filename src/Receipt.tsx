@@ -15,12 +15,12 @@ export type PaymentRow = {
 
 const row = 'flex justify-between gap-2'
 
-// 58mm slip. On screen it previews as white paper; Print shows only this block.
+// 80mm slip (72mm printable width). On screen it previews as white paper; Print shows only this block.
 export function Slip({ heading, notReceipt, label, waiter, lines, total, children }:
   { heading: string; notReceipt?: boolean; label: string; waiter: string; lines: BillLine[]; total: number; children?: ReactNode }) {
   return (
-    <div id="receipt" className="mx-auto w-[58mm] min-w-[58mm] bg-white p-2 font-mono text-[11px] leading-tight text-black">
-      <div className="text-center text-sm font-bold">GRILLS LOUNGE NDAGANI</div>
+    <div id="receipt" className="mx-auto w-[72mm] min-w-[72mm] bg-white p-2 font-mono text-[12px] leading-snug text-black">
+      <div className="text-center text-base font-bold">GREECE LOUNGE</div>
       <div className="text-center">{heading}</div>
       {notReceipt && <div className="my-1 border border-black text-center font-bold">NOT A RECEIPT</div>}
       <div>{label} · {waiter}</div>

@@ -113,13 +113,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 }
 
 /* ------------------------------------------------------------------ *
- * 4. PRINT - 58mm thermal slip. Always black on white, whatever the theme.
+ * 4. PRINT - 80mm thermal slip (72mm printable). Always black on white, whatever the theme.
  *    Printing shows only the slip and never calls the server.
+ *    Everything that is not the slip (or a wrapper around it) is removed from the page, so the
+ *    paper length equals the slip length: no blank pages, no wasted paper roll.
  * ------------------------------------------------------------------ */
 @media print {
-  html, body { background: #fff !important; color: #000 !important; }
-  body * { visibility: hidden; }
-  #receipt, #receipt * { visibility: visible; }
-  #receipt { position: absolute; left: 0; top: 0; width: 58mm; box-shadow: none !important; }
-  @page { size: 58mm auto; margin: 2mm; }
+  @page { size: 80mm auto; margin: 0; }
+  html, body { background: #fff !important; color: #000 !important; margin: 0 !important; padding: 0 !important;
+               width: 80mm !important; height: auto !important; min-height: 0 !important; overflow: visible !important; }
+  body *:not(#receipt):not(#receipt *):not(:has(#receipt)) { display: none !important; }
+  /* wrappers around the slip: plain blocks, no layout tricks */
+  body *:has(#receipt) { display: block !important; position: static !important; inset: auto !important; transform: none !important;
+                         width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important;
+                         margin: 0 !important; padding: 0 !important; border: 0 !important; box-shadow: none !important;
+                         background: transparent !important; overflow: visible !important; }
+  #receipt { display: block !important; width: 72mm !important; min-width: 0 !important; margin: 0 auto !important;
+             padding: 2mm 1mm 12mm !important; box-shadow: none !important; break-inside: avoid; }
 }
