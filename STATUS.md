@@ -1,4 +1,4 @@
-# Greece Lounge POS — Project status
+# The Greece Lounge POS — Project status
 
 Last updated: 27 Oct 2026
 
