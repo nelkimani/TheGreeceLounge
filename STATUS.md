@@ -1,4 +1,4 @@
-# Grills Lounge Ndagani POS — Project status
+# Greece Lounge POS — Project status
 
 Last updated: 27 Oct 2026
 
@@ -71,7 +71,7 @@ Terminal is chosen by `VITE_TERMINAL_CODE` in `.env` (OFFICE, T1, T2, T3).
 3. M-Pesa code entry; duplicate codes rejected; shows "Awaiting verification"
 4. Partial and mixed payments; payments blocked when the connection drops
 5. Request bill; interim bill labelled "NOT A RECEIPT"; split bill (by item / equally)
-6. Final receipt, 58mm print layout; printing can never create a second payment
+6. Final receipt, 80mm print layout; printing can never create a second payment
 7. Tab closing rules: settles only at zero balance, or an approved credit/exception
 8. Pilot night on demo data: order, serve, pay, close
 
