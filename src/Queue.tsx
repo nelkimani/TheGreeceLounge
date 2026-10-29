@@ -37,14 +37,57 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
     return () => { supabase.removeChannel(ch); clearInterval(poll); clearInterval(tick) }
   }, [load])
 
+  // Bar drinks are served in ONE tap. Kitchen and choma keep their steps (Accept, Start, Ready, Served).
+  const isBar = (i: QItem) => i.station === 'bar'
+  const nextOf = (i: QItem) => isBar(i) ? { label: 'Serve', to: 'serve' } : NEXT[i.status]
+
+  // Old step-by-step chain: only used if the database has not been updated with 017 yet.
+  const chain = async (it: QItem) => {
+    const steps: [string, string][] = [['new', 'claim'], ['accepted', 'preparing'], ['preparing', 'ready'], ['ready', 'served']]
+    for (let k = steps.findIndex(x => x[0] === it.status); k >= 0 && k < steps.length; k++) {
+      const to = steps[k][1]
+      const { error } = to === 'claim'
+        ? await supabase.rpc('claim_item', { p_item: it.item_id, p_terminal: TERMINAL_CODE })
+        : await supabase.rpc('update_item_status', { p_item: it.item_id, p_status: to })
+      if (error) return error
+    }
+    return null
+  }
+
+  // Returns an error message, or '' when done.
+  const run = async (it: QItem): Promise<string> => {
+    const a = nextOf(it)
+    if (!a) return ''
+    let error: { message: string } | null
+    if (a.to === 'serve') {
+      ({ error } = await supabase.rpc('serve_bar_item', { p_item: it.item_id, p_terminal: TERMINAL_CODE }))
+      if (error && /serve_bar_item|schema cache|could not find/i.test(error.message)) error = await chain(it)
+    } else if (a.to === 'claim') {
+      ({ error } = await supabase.rpc('claim_item', { p_item: it.item_id, p_terminal: TERMINAL_CODE }))
+    } else {
+      ({ error } = await supabase.rpc('update_item_status', { p_item: it.item_id, p_status: a.to }))
+    }
+    if (!error) return ''
+    return error.message === 'already claimed' ? 'Already taken at another screen'
+         : error.message === 'already served' ? 'Already served at another screen' : error.message
+  }
+
   const act = async (it: QItem) => {
-    const a = NEXT[it.status]
-    if (!a || busyId) return
+    if (!nextOf(it) || busyId) return
     setBusyId(it.item_id); setMsg('')
-    const { error } = a.to === 'claim'
-      ? await supabase.rpc('claim_item', { p_item: it.item_id, p_terminal: TERMINAL_CODE })
-      : await supabase.rpc('update_item_status', { p_item: it.item_id, p_status: a.to })
-    if (error) setMsg(error.message === 'already claimed' ? 'Already taken at another screen' : error.message)
+    setMsg(await run(it))
+    await load()
+    setBusyId(null)
+  }
+
+  // One tap for the whole order: serves every bar item on the ticket.
+  const serveAll = async (group: QItem[]) => {
+    if (busyId) return
+    setBusyId('order:' + group[0].order_id); setMsg('')
+    for (const it of group.filter(isBar)) {
+      const err = await run(it)
+      if (err) { setMsg(err); break }
+    }
     await load()
     setBusyId(null)
   }
@@ -101,8 +144,8 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
               <div className="mb-2 text-lg text-slate-300">{first.waiter_name}</div>
               <div className="space-y-2">
                 {group.map(i => {
-                  const a = NEXT[i.status]
-                  const elsewhere = !!i.claimed_terminal && i.claimed_terminal !== TERMINAL_CODE
+                  const a = nextOf(i)
+                  const elsewhere = !isBar(i) && !!i.claimed_terminal && i.claimed_terminal !== TERMINAL_CODE
                     && i.status !== 'new' && !can(profile, 'tab.view_all')
                   return (
                     <div key={i.item_id} className={`flex items-center gap-2 rounded-lg p-2 ${i.status === 'ready' ? 'bg-green-800' : 'bg-slate-900/60'}`}>
@@ -121,6 +164,12 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
                   )
                 })}
               </div>
+              {group.filter(isBar).length > 1 && (
+                <button disabled={!!busyId} onClick={() => serveAll(group)}
+                  className="mt-3 h-btn w-full rounded-xl bg-green-600 text-xl font-semibold text-white active:bg-green-500 disabled:opacity-40">
+                  Serve all ({group.filter(isBar).length})
+                </button>
+              )}
             </div>
           )
         })}
