@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
 import { kes } from './lib'
+import type { SlipRow } from './escpos'
 
 export type BillLine = {
   item_id: string; product_name: string; qty: number; unit_price: number; line_total: number; status: string
@@ -40,19 +41,26 @@ export function Slip({ heading, notReceipt, label, waiter, lines, total, childre
   )
 }
 
+// The payment block under the total. One list feeds both the on-screen slip and the USB printer.
+export function paymentRows(p: PaymentRow, remaining: number): SlipRow[] {
+  const rows: SlipRow[] = [
+    { left: `Receipt #${p.receipt_no}`, right: p.method === 'cash' ? 'CASH' : 'M-PESA' },
+    { left: 'Paid', right: kes(p.amount) },
+  ]
+  if (p.method === 'cash' && p.tendered_amount != null) {
+    rows.push({ left: 'Cash given', right: kes(p.tendered_amount) }, { left: 'Change', right: kes(p.change_given) })
+  }
+  if (p.mpesa_code) rows.push({ left: 'M-Pesa code', right: p.mpesa_code })
+  rows.push({ left: 'Balance', right: kes(remaining), bold: true })
+  return rows
+}
+
 export function PaymentLines({ p, remaining }: { p: PaymentRow; remaining: number }) {
   return (
     <div className="mt-1 border-t border-black pt-1">
-      <div className={row}><span>Receipt #{p.receipt_no}</span><span>{p.method === 'cash' ? 'CASH' : 'M-PESA'}</span></div>
-      <div className={row}><span>Paid</span><span>{kes(p.amount)}</span></div>
-      {p.method === 'cash' && p.tendered_amount != null && (
-        <>
-          <div className={row}><span>Cash given</span><span>{kes(p.tendered_amount)}</span></div>
-          <div className={row}><span>Change</span><span>{kes(p.change_given)}</span></div>
-        </>
-      )}
-      {p.mpesa_code && <div className={row}><span>M-Pesa code</span><span>{p.mpesa_code}</span></div>}
-      <div className={`${row} font-bold`}><span>Balance</span><span>{kes(remaining)}</span></div>
+      {paymentRows(p, remaining).map((r, i) => (
+        <div key={i} className={`${row}${r.bold ? ' font-bold' : ''}`}><span>{r.left}</span><span>{r.right}</span></div>
+      ))}
       <div className="mt-1 text-center">Thank you</div>
     </div>
   )
