@@ -38,6 +38,7 @@ export function Slip({ heading, notReceipt, label, waiter, lines, total, childre
       <hr className="my-1 border-black" />
       <div className={`${row} text-xs font-bold`}><span>TOTAL</span><span>{kes(total)}</span></div>
       {children}
+      <div className="mt-1 text-center text-[10px]">Powered by Mvule Technologies</div>
     </div>
   )
 }

@@ -92,6 +92,7 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
   }
   bold(false)
   if (d.footer) { align(1); line(); line(clean(d.footer)); align(0) }
+  align(1); line(); line('Powered by Mvule Technologies'); align(0)
 
   raw(ESC, 0x64, 5)                                          // feed 5 lines past the print head
   raw(GS, 0x56, 0x01)                                        // partial cut (ignored if no cutter)
