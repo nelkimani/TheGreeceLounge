@@ -22,6 +22,7 @@ export function Slip({ heading, notReceipt, label, waiter, lines, total, childre
   return (
     <div id="receipt" className="mx-auto w-[72mm] min-w-[72mm] bg-white p-2 font-mono text-[12px] leading-snug text-black">
       <div className="text-center text-base font-bold">GREECE LOUNGE</div>
+      <div className="text-center">CHUKA-NDAGANI</div>
       <div className="text-center">{heading}</div>
       {notReceipt && <div className="my-1 border border-black text-center font-bold">NOT A RECEIPT</div>}
       <div>{label} · {waiter}</div>

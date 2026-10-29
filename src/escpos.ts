@@ -67,6 +67,7 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
 
   raw(ESC, 0x40)                                             // reset the printer
   align(1); bold(true); size(0x11); line('GREECE LOUNGE'); size(0x00); bold(false)
+  line('CHUKA-NDAGANI')
   line(clean(d.heading))
   if (d.notReceipt) { bold(true); rule('='); line('NOT A RECEIPT'); rule('='); bold(false) }
   align(0)
