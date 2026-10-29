@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
 
 type Rep = { id: string; period_start: string; period_end: string; status: string; notes: string | null; director_notes: string | null
@@ -43,7 +43,7 @@ export default function Reports({ profile, onDone }: { profile: Profile; onDone:
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="mr-auto text-3xl font-bold">Reports & sign-off</h2>
         {open && <Btn kind="ghost" className="!h-12" onClick={() => { setOpen(null); load() }}>← All reports</Btn>}
-        <Btn kind="ghost" className="!h-12" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} className="!h-12" />
       </div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       {!open && (<>

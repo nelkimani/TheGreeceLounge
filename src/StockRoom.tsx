@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
 
 type Row = { product_id: string; name: string; base_unit: string; location_kind: string; qty: number; reorder_level: number | null; purchase_cost: number | null }
@@ -34,7 +34,7 @@ export default function StockRoom({ profile, onDone }: { profile: Profile; onDon
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="mr-4 text-3xl font-bold">Stock room</h2>
         {LOCS.map(([c, n]) => <button key={c} onClick={() => setLoc(c)} className={`h-14 rounded-xl px-6 text-xl font-semibold ${loc === c ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{n}</button>)}
-        <Btn kind="ghost" className="ml-auto !h-12" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} className="ml-auto !h-12" />
       </div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       <div className="mb-2 text-lg text-slate-300">Stock value at latest cost: <b>{kes(value)}</b> · stock arrives through Purchasing → Receive goods</div>

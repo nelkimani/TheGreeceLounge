@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn, Keypad } from './ui'
+import { Btn, Keypad, HomeBtn } from './ui'
 import { isNetworkError, uid } from './lib'
 
 type Row = { product_id: string; name: string; base_unit: string; category: string | null; reorder_level: number | null; on_hand: number; low: boolean; negative: boolean }
@@ -69,7 +69,7 @@ export default function BarStock({ profile, onDone }: { profile: Profile; onDone
       <div>
         <div className="mb-3 flex items-center gap-3">
           <h2 className="mr-auto text-3xl font-bold">Bar stock</h2>
-          <Btn kind="ghost" onClick={onDone}>Home</Btn>
+          <HomeBtn onClick={onDone} />
         </div>
         <div className="space-y-2">
           {rows.map(r => (

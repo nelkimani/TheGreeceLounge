@@ -20,6 +20,9 @@ const P: Record<string, string> = {
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
   star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
   close: 'M6 6l12 12M18 6L6 18',
+  home: 'M3 11l9-8 9 8M5 9.5V20h14V9.5M10 20v-6h4v6',
+  panel: 'M3 5h18v14H3zM9 5v14',
+  keyboard: 'M2 6h20v12H2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10',
 }
 export type IconName = keyof typeof P
 export const Icon = ({ name, className = 'h-8 w-8' }: { name: IconName; className?: string }) => (

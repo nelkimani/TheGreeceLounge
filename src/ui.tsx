@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react'
-import { useTheme } from './device'
+import { isTerminal, useTheme } from './device'
 
 // Touch design tokens from UI_UX_ADDENDUM §3. Button height comes from --btn-h (index.css):
 // 64-80px on the touch terminals, ~44px on the office computer and laptop.
@@ -15,6 +15,10 @@ export const Btn = ({ children, onClick, disabled, kind = 'primary', className =
     </button>
   )
 }
+
+// "Home" button inside a screen. The office sidebar replaces it, so it only shows on the touch terminals.
+export const HomeBtn = ({ onClick, className = '' }: { onClick: () => void; className?: string }) =>
+  isTerminal ? <Btn kind="ghost" onClick={onClick} className={className}>Home</Btn> : null
 
 const Sun = () => (
   <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

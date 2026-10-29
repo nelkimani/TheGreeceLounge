@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 
 type Item = {
   id: string; kind: string; reason: string; status: string; created_at: string; requester_name: string
@@ -51,7 +51,7 @@ export default function Approvals({ onDone }: { onDone: () => void }) {
     <div className="mx-auto max-w-3xl p-4">
       <div className="mb-3 flex items-center gap-3">
         <h2 className="mr-auto text-3xl font-bold">Approvals ({pending.length} waiting)</h2>
-        <Btn kind="ghost" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} />
       </div>
       {msg && <div className="mb-3 rounded-lg bg-red-700 p-3 text-lg font-semibold">{msg}</div>}
       <div className="space-y-3">

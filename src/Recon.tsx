@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
 
 type Tab = 'cash' | 'mpesa' | 'close'
@@ -32,7 +32,7 @@ export default function Recon({ profile, onDone }: { profile: Profile; onDone: (
         <h2 className="mr-4 text-3xl font-bold">Reconciliation</h2>
         {tabBtn('cash', 'Cash')}{tabBtn('mpesa', 'M-Pesa')}{tabBtn('close', 'Day close')}
         <input type="date" className={input + ' ml-auto'} value={date} onChange={e => setDate(e.target.value)} />
-        <Btn kind="ghost" onClick={onDone} className="!h-12">Home</Btn>
+        <HomeBtn onClick={onDone} className="!h-12" />
       </div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       {tab === 'cash' && <Cash date={date} profile={profile} flash={flash} />}

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase, TERMINAL_CODE, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { LATE_AMBER_MIN, LATE_RED_MIN, TERMINAL_NAMES, uid } from './lib'
 
 type QItem = {
@@ -116,7 +116,7 @@ export default function Queue({ profile, stations, onDone }: { profile: Profile;
           <Btn key={s} kind={sel.length === 1 && sel[0] === s ? 'primary' : 'ghost'} onClick={() => setSel([s])}>{LABEL[s]}</Btn>
         ))}
         {stations.length > 1 && <Btn kind={sel.length > 1 ? 'primary' : 'ghost'} onClick={() => setSel(stations)}>All</Btn>}
-        <Btn kind="ghost" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} />
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
         {summary.map(([label, n, tone]) => (

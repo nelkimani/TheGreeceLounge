@@ -113,6 +113,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 }
 
 /* ------------------------------------------------------------------ *
+ * 3b. OFFICE SHELL: content uses the full width next to the sidebar.
+ *     Screens were written as a centred column (mx-auto max-w-3xl..6xl). Inside the office shell the
+ *     top-level column is released so tables and forms fill the screen. Terminals never get
+ *     .office-main, so they are untouched. Add .office-narrow to a screen that should stay narrow
+ *     (the payment keypad flow does).
+ * ------------------------------------------------------------------ */
+.office-main > .mx-auto.max-w-3xl:not(.office-narrow),
+.office-main > .mx-auto.max-w-4xl:not(.office-narrow),
+.office-main > .mx-auto.max-w-5xl:not(.office-narrow),
+.office-main > .mx-auto.max-w-6xl:not(.office-narrow) { max-width: none; padding: 1.5rem; }
+/* The tab / bill screen keeps its two columns but lets the bill column grow. */
+.office-main > .mx-auto.max-w-5xl.grid:not(.office-narrow) { grid-template-columns: minmax(0, 1fr) 24rem; }
+
+/* Sidebar items: a clear keyboard focus that stays inside the item. */
+.office-main:focus { outline: none; }
+aside nav button:focus-visible { outline-offset: -3px; }
+
+/* ------------------------------------------------------------------ *
  * 4. PRINT - 80mm thermal slip (72mm printable). Always black on white, whatever the theme.
  *    Printing shows only the slip and never calls the server.
  *    Everything that is not the slip (or a wrapper around it) is removed from the page, so the

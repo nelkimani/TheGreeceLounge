@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, TERMINAL_CODE, Profile, can } from './supabase'
-import { AlphaKeys, Btn } from './ui'
+import { AlphaKeys, Btn, HomeBtn } from './ui'
 import { Icon } from './icons'
 import { confirmDialog } from './feedback'
 import { CartLine, Draft, LOCK_AFTER_SEND, QUICK_NOTES, bumpFreq, clearDraft, isNetworkError, kes, listNotSent, loadDraft, loadFreq, saveDraft, uid } from './lib'
@@ -160,7 +160,7 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
     <div className="p-4">
       <div className="mb-3 flex items-center gap-3">
         <h2 className="mr-auto text-3xl font-bold">Tables</h2>
-        <Btn kind="ghost" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} />
         <Btn onClick={() => setNaming(true)}>+ Takeaway / named tab</Btn>
       </div>
       <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-base text-slate-300">

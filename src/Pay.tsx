@@ -5,6 +5,7 @@ import { isNetworkError, kes, uid } from './lib'
 import { BillLine, CardRow, PaymentLines, PaymentRow, Slip, paymentRows } from './Receipt'
 import PrinterControl from './PrinterControl'
 import { printSlip } from './printer'
+import { isTyping, useEscape } from './keys'
 
 type Mode = 'cash' | 'mpesa' | 'split'
 type Done = { p: PaymentRow; remaining: number; settled: boolean }
@@ -105,8 +106,14 @@ export default function Pay({ profile, tab, onBack, onDone }:
   )
   const lock = !online || !card || balance <= 0
 
+  // Esc = cancel: first press leaves the box you are typing in, the next goes back to the bill.
+  useEscape(() => {
+    if (isTyping(document.activeElement)) (document.activeElement as HTMLElement).blur()
+    else onBack()
+  }, !busy && !done)
+
   return (
-    <div className="mx-auto max-w-5xl p-4">
+    <div className="office-narrow mx-auto max-w-5xl p-4">
       <div className="mb-3 flex items-center gap-3">
         <Btn kind="ghost" onClick={onBack} className="!h-[3.75rem]">← {tab.label}</Btn>
         <div className="ml-auto grid grid-cols-3 gap-6 text-right">

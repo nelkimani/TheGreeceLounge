@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
 
 type Supplier = { supplier_id: string; name: string; kind: string; is_big: boolean; phone: string | null; invoiced: number; paid: number; owed: number }
@@ -34,7 +34,7 @@ export default function Purchasing({ profile, onDone }: { profile: Profile; onDo
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="mr-4 text-3xl font-bold">Purchasing</h2>
         {t('receive', 'Receive goods')}{t('suppliers', 'Suppliers')}{t('history', 'Deliveries')}
-        <Btn kind="ghost" className="ml-auto !h-12" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} className="ml-auto !h-12" />
       </div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       {tab === 'receive' && <Receive suppliers={suppliers} products={products} flash={flash} reload={load} />}

@@ -75,6 +75,11 @@ const Shell = ({ title, message, children, onEscape }: { title: string; message?
 
 function ConfirmView({ d }: { d: Extract<DialogState, { type: 'confirm' }> }) {
   const answer = (v: boolean) => { close(); d.resolve(v) }
+  // Enter confirms (keyboard on the office computer). A held-down key must never confirm by repeating.
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => { if (e.key === 'Enter' && !e.repeat) { e.preventDefault(); answer(true) } }
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k)
+  })
   return (
     <Shell title={d.title} message={d.message} onEscape={() => answer(false)}>
       <div className="flex gap-3">

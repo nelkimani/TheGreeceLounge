@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
 
 type Row = { id: string; business_date: string; category: string; amount: number; description: string; receipt_ref: string | null; recorded_by_name: string; voided: boolean; void_reason: string | null }
@@ -45,7 +45,7 @@ export default function Expenses({ profile, onDone }: { profile: Profile; onDone
 
   return (
     <div className="mx-auto max-w-4xl p-4">
-      <div className="mb-4 flex items-center gap-3"><h2 className="mr-auto text-3xl font-bold">Cash expenses · today</h2><Btn kind="ghost" className="!h-12" onClick={onDone}>Home</Btn></div>
+      <div className="mb-4 flex items-center gap-3"><h2 className="mr-auto text-3xl font-bold">Cash expenses · today</h2><HomeBtn onClick={onDone} className="!h-12" /></div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       {can(profile, 'expense.record') && (
         <div className="mb-6 space-y-3 rounded-xl bg-slate-800 p-4">

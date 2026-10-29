@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
-import { Btn } from './ui'
+import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
 
 type Tab = 'sales' | 'profit' | 'stock' | 'cash'
@@ -109,7 +109,7 @@ export default function OwnerReports({ profile, onDone }: { profile: Profile; on
         <h2 className="mr-3 text-3xl font-bold">Owner reports</h2>
         {tabBtn('sales', 'Sales', seeSales)}{tabBtn('profit', 'Profit', seeProfit)}
         {tabBtn('stock', 'Stock value & losses', seeProfit)}{tabBtn('cash', 'Cash, M-Pesa & credit', seeSales)}
-        <Btn kind="ghost" className="ml-auto !h-12" onClick={onDone}>Home</Btn>
+        <HomeBtn onClick={onDone} className="ml-auto !h-12" />
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-800 p-3">
         {presets.map(([l, a, b]) => (
