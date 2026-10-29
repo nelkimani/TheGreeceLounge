@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile } from './supabase'
 import { AlphaKeys, Btn, Keypad } from './ui'
 import { isNetworkError, kes, uid } from './lib'
-import { BillLine, CardRow, PaymentLines, PaymentRow, Slip } from './Receipt'
+import { BillLine, CardRow, PaymentLines, PaymentRow, Slip, paymentRows } from './Receipt'
+import PrinterControl from './PrinterControl'
+import { printSlip } from './printer'
 
 type Mode = 'cash' | 'mpesa' | 'split'
 type Done = { p: PaymentRow; remaining: number; settled: boolean }
@@ -21,6 +23,7 @@ export default function Pay({ profile, tab, onBack, onDone }:
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState<Done | null>(null)
+  const [printMsg, setPrintMsg] = useState('')
   const [online, setOnline] = useState(navigator.onLine)
   const keyRef = useRef<string | null>(null)
 
@@ -83,9 +86,14 @@ export default function Pay({ profile, tab, onBack, onDone }:
           <PaymentLines p={p} remaining={remaining} />
         </Slip>
         <div className="flex gap-3">
-          <Btn kind="ghost" onClick={() => window.print()}>Print receipt</Btn>
+          <Btn kind="ghost" onClick={async () => setPrintMsg(await printSlip({
+            heading: 'Receipt', label: tab.label, waiter: profile.full_name, lines: served,
+            total: Number(card?.bill_total ?? 0), rows: paymentRows(p, remaining), footer: 'Thank you',
+          }))}>Print receipt</Btn>
           <Btn onClick={onDone}>Done</Btn>
         </div>
+        {printMsg && <div className="text-lg text-slate-300">{printMsg}</div>}
+        <PrinterControl />
         <div className="text-sm text-slate-400">Printing only prints. It never records a second payment.</div>
       </div>
     )

@@ -3,6 +3,8 @@ import { supabase, Profile, can } from './supabase'
 import { Btn } from './ui'
 import { kes } from './lib'
 import { BillLine, CardRow, Slip } from './Receipt'
+import PrinterControl from './PrinterControl'
+import { printSlip } from './printer'
 
 const STATUS_TEXT: Record<string, string> = {
   new: 'Sent', accepted: 'Accepted', preparing: 'Preparing', ready: 'READY', served: 'Served',
@@ -14,6 +16,7 @@ export default function TabHub({ profile, tab, onOrder, onPay, onBack }:
   const [lines, setLines] = useState<BillLine[]>([])
   const [loaded, setLoaded] = useState(false)
   const [showBill, setShowBill] = useState(false)
+  const [printMsg, setPrintMsg] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
 
@@ -70,8 +73,15 @@ export default function TabHub({ profile, tab, onOrder, onPay, onBack }:
         </Slip>
         <div className="flex gap-3">
           <Btn kind="ghost" onClick={() => setShowBill(false)}>Back</Btn>
-          <Btn onClick={() => window.print()}>Print bill</Btn>
+          <Btn onClick={async () => setPrintMsg(await printSlip({
+            heading: 'Interim bill', notReceipt: true, label: tab.label, waiter: card?.waiter_name ?? profile.full_name,
+            lines, total: all,
+            rows: [{ left: 'Paid so far', right: kes(card?.paid) },
+                   { left: 'Still to pay', right: kes(all - Number(card?.paid ?? 0)), bold: true }],
+          }))}>Print bill</Btn>
         </div>
+        {printMsg && <div className="text-lg text-slate-300">{printMsg}</div>}
+        <PrinterControl />
       </div>
     )
   }
