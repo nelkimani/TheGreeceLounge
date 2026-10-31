@@ -41,6 +41,7 @@ Last updated: 27 Oct 2026
 | 018_go_live_reset.sql | NOT run yet | One-time go-live reset: clears test sales/stock/audit data and demo products. Back up first; set confirm to RESET to run |
 | 019_load_catalogue_and_opening_stock.sql | NOT run yet | Loads the 38 real products (no prices yet) and opening stock from the 02/10/2026 delivery sheet. Run after 018; safe to re-run |
 | 020_products_admin.sql | NOT run yet | Database functions behind the Products & prices screen (list, save prices, rename/hide, add product). Needs catalogue.manage |
+| 021_tables_30.sql | NOT run yet | Replaces the 12 demo tables with the real 30 tables (1 to 30). Safe to re-run |
 
 ## App (pos-app/)
 - Office login and terminal PIN login (on-screen letters + digits and number keypad)
