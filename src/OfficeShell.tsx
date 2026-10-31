@@ -107,7 +107,7 @@ function Sidebar({ items, activeId, collapsed, onToggle, onGo, onPalette }:
   return (
     <aside className={`flex shrink-0 flex-col border-r border-slate-700 bg-slate-800 ${collapsed ? 'w-[4.25rem]' : 'w-[15rem]'}`}>
       <div className="flex h-topbar shrink-0 items-center gap-2 border-b border-slate-700 px-3">
-        {!collapsed && <div className="min-w-0 flex-1 truncate text-base font-bold leading-tight">The Greece Lounge<div className="text-xs font-normal text-slate-400">Point of sale</div></div>}
+        {!collapsed && <div className="min-w-0 flex-1 truncate text-base font-bold leading-tight">The Gliz Lounge<div className="text-xs font-normal text-slate-400">Point of sale</div></div>}
         <button onClick={onToggle} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-700"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={`${collapsed ? 'Expand' : 'Collapse'} sidebar ( [ )`}>
           <Icon name="panel" className="h-5 w-5" />
