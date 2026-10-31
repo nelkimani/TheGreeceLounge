@@ -1,7 +1,7 @@
 import { Profile, can } from './supabase'
 import type { IconName } from './icons'
 
-export type View = 'home' | 'waiter' | 'queue' | 'staff' | 'stock' | 'approvals' | 'handover' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner'
+export type View = 'home' | 'waiter' | 'queue' | 'staff' | 'stock' | 'approvals' | 'handover' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products'
 
 // The office sidebar groups screens by job. Terminals ignore groups and use `kind` for the tile home.
 export type Group = 'sales' | 'stock' | 'money' | 'reports' | 'admin'
@@ -51,6 +51,7 @@ export function navItems(profile: Profile): NavItem[] {
       can(profile, 'stock.view_all') || stationPerms.includes('kitchen') || stationPerms.includes('choma')),
     item('reports', 'reports', 'Reports & sign-off', 'reports', 'manage', can(profile, 'report.view') || can(profile, 'report.build')),
     item('owner', 'owner', 'Owner reports', 'reports', 'manage', can(profile, 'report.sales') || can(profile, 'report.profit')),
+    item('products', 'products', 'Products & prices', 'admin', 'manage', can(profile, 'catalogue.manage')),
     item('staff', 'staff', 'Staff', 'admin', 'manage', can(profile, 'staff.manage')),
   ].filter(x => x.show).map(x => x.it)
 }

@@ -40,6 +40,7 @@ Last updated: 27 Oct 2026
 | 006_demo_catalogue.sql | Run | 11 fake products across bar, choma, kitchen (all flagged is_demo) |
 | 018_go_live_reset.sql | NOT run yet | One-time go-live reset: clears test sales/stock/audit data and demo products. Back up first; set confirm to RESET to run |
 | 019_load_catalogue_and_opening_stock.sql | NOT run yet | Loads the 38 real products (no prices yet) and opening stock from the 02/10/2026 delivery sheet. Run after 018; safe to re-run |
+| 020_products_admin.sql | NOT run yet | Database functions behind the Products & prices screen (list, save prices, rename/hide, add product). Needs catalogue.manage |
 
 ## App (pos-app/)
 - Office login and terminal PIN login (on-screen letters + digits and number keypad)
@@ -61,7 +62,7 @@ Terminal is chosen by `VITE_TERMINAL_CODE` in `.env` (OFFICE, T1, T2, T3).
 - NOT SENT retries only run while that waiter is signed in.
 - Cancelling an accepted item needs the approval flow (Phase 3/4).
 - Item notes, favourites ordering and the bar direct-sale screen are not built yet.
-- Catalogue import screen (CSV/Excel) and manual product form are not built (the import RPC exists).
+- Products & prices screen (office, Admin group) is built: edit prices, rename, hide, add. The CSV/Excel catalogue import screen is still not built (the import RPC exists).
 - Two npm audit warnings to review in Phase 7.
 - Three shared terminals will bottleneck on a busy night; a fourth device is advised.
 - Real catalogue, prices, opening stock and staff list are needed before the Phase 4 pilot.

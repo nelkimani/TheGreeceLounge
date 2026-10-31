@@ -22,6 +22,7 @@ const P: Record<string, string> = {
   close: 'M6 6l12 12M18 6L6 18',
   home: 'M3 11l9-8 9 8M5 9.5V20h14V9.5M10 20v-6h4v6',
   panel: 'M3 5h18v14H3zM9 5v14',
+  products: 'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',
   keyboard: 'M2 6h20v12H2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10',
 }
 export type IconName = keyof typeof P
