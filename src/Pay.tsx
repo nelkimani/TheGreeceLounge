@@ -71,6 +71,14 @@ export default function Pay({ profile, tab, onBack, onDone }:
     setBusy(false)
   }
 
+  // Esc = cancel: first press leaves the box you are typing in, the next goes back to the bill.
+  // Must stay ABOVE the `if (done)` early return: hooks have to run on every render, otherwise React
+  // crashes with "rendered fewer hooks" the moment a payment succeeds and the screen goes blank.
+  useEscape(() => {
+    if (isTyping(document.activeElement)) (document.activeElement as HTMLElement).blur()
+    else onBack()
+  }, !busy && !done)
+
   if (done) {
     const { p, remaining, settled } = done
     return (
@@ -105,12 +113,6 @@ export default function Pay({ profile, tab, onBack, onDone }:
       className={`h-[3.75rem] flex-1 rounded-xl text-xl font-semibold ${mode === m ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{text}</button>
   )
   const lock = !online || !card || balance <= 0
-
-  // Esc = cancel: first press leaves the box you are typing in, the next goes back to the bill.
-  useEscape(() => {
-    if (isTyping(document.activeElement)) (document.activeElement as HTMLElement).blur()
-    else onBack()
-  }, !busy && !done)
 
   return (
     <div className="office-narrow mx-auto max-w-5xl p-4">
