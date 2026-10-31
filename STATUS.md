@@ -39,6 +39,7 @@ Last updated: 27 Oct 2026
 | 005_phase2_ordering.sql | Run | open_tab, submit_order, claim_item, update_item_status, station_queue, tab_cards, Realtime |
 | 006_demo_catalogue.sql | Run | 11 fake products across bar, choma, kitchen (all flagged is_demo) |
 | 018_go_live_reset.sql | NOT run yet | One-time go-live reset: clears test sales/stock/audit data and demo products. Back up first; set confirm to RESET to run |
+| 019_load_catalogue_and_opening_stock.sql | NOT run yet | Loads the 38 real products (no prices yet) and opening stock from the 02/10/2026 delivery sheet. Run after 018; safe to re-run |
 
 ## App (pos-app/)
 - Office login and terminal PIN login (on-screen letters + digits and number keypad)
