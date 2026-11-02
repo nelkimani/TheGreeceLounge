@@ -5,7 +5,8 @@ Last updated: 2 Nov 2026
 ## Where we are
 - Phases 0 to 6 built (foundation, ordering, stock, reconciliation, purchasing, owner reports).
 - **2 Nov 2026: workflow change to captain orders (migration 022 + app).** The old queue, payment and cash hand-in screens are gone from the app.
-- Next: run 022 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
+- **2 Nov 2026: stock sheet (migration 023 + app).** The accountant downloads the Excel stock sheet (Stock > **Stock sheet**), types the first stock take in the Opening stock column and uploads it. See "Stock sheet" below.
+- Next: run 022 and 023 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
 
 ## How a sale works now
 1. The waiter picks a table (or Takeaway / Bar sale), keys the order and taps SEND & PRINT.
@@ -18,6 +19,14 @@ Last updated: 2 Nov 2026
 8. Owner reports still show who sold what and when: **Owner reports > Sales log**, plus the existing sales, profit and stock reports.
 
 **Station routing uses each product's station.** Meat products must have station "Choma"; kitchen and no-station products print on the Restaurant slip. Check this in Products & prices.
+
+## Stock sheet (first stock take and the weekly reconciliation)
+- The Excel file is `public/Glizz-Lounge-Stock-Sheet.xlsx`, built from the paper sheet: 272 drinks in 16 categories, no quantities. Rebuild it with `python3 tools/make_stock_sheet.py` after editing `tools/stock_sheet_products.json` (needs `pip install openpyxl`).
+- One row per drink. Columns A to D are what the app reads: Category, Product, Price (optional), Opening stock. Then for each day Mon to Sun: **Opening, Issued, Sold, Expected, Count 8am, Variance**, and week totals. Expected = Opening + Issued - Sold. Variance = Count - Expected (red short, amber over). Each day's Count becomes the next day's Opening.
+- **Upload (app):** Stock sheet screen > Upload filled sheet. It is checked first, then Load records opening stock into the Main Bar. New drinks are added (Bar station); drinks already in the catalogue are left alone; a drink that already has opening stock is skipped, so a second upload cannot double the stock. Any bad row stops the whole upload and is listed.
+- New permission `stock.import` (manager and accountant). People already signed in must sign out and in again.
+- If 019 was run, drinks with the same name are matched, but different spellings (e.g. "KC Smooth 250ml" and "K C SMOOTH 250ML") become two products. Skip 019 if this sheet is the real catalogue.
+- Sold has to be typed in from the POS sales report; it is not filled automatically yet. Only the first stock take is uploaded; the daily columns are used in Excel.
 
 ## Decisions made
 | Decision | Value |
@@ -54,6 +63,7 @@ Last updated: 2 Nov 2026
 | 020_products_admin.sql | NOT run yet | Database functions behind the Products & prices screen (list, save prices, rename/hide, add product). Needs catalogue.manage |
 | 021_tables_30.sql | NOT run yet | Replaces the 12 demo tables with the real 30 tables (1 to 30). Safe to re-run |
 | 022_captain_orders.sql | NOT run yet | Captain-order workflow: submit_sale, captain_orders, voids, slip reconciliation, sales log report. Run after 021. Safe to re-run. Close any old open tabs first |
+| 023_stock_sheet_import.sql | NOT run yet | Stock sheet upload: `stock.import` permission and `import_stock_sheet` (adds drinks, loads opening stock once). Run after 022. Safe to re-run |
 
 ## App (repo root)
 - Office login and terminal PIN login; home shows only the buttons each role may use

@@ -14,6 +14,7 @@ import StockRoom from './StockRoom'
 import Reports from './Reports'
 import OwnerReports from './OwnerReports'
 import Products from './Products'
+import StockSheet from './StockSheet'
 import OfficeShell from './OfficeShell'
 import { GROUPS, NavItem, View, navId, navItems } from './nav'
 import { ORDER_IDLE_MS, STATION_IDLE_MS, TERMINAL_NAMES, listNotSent } from './lib'
@@ -119,6 +120,7 @@ export default function App() {
       {view === 'reports' && <Reports profile={p} onDone={home} />}
       {view === 'owner' && <OwnerReports profile={p} onDone={home} />}
       {view === 'products' && <Products profile={p} onDone={home} />}
+      {view === 'stocksheet' && <StockSheet profile={p} onDone={home} />}
       {view === 'staff' && (
         <div>
           {isTerminal && <div className="p-3"><Btn kind="ghost" onClick={home}>← Home</Btn></div>}
