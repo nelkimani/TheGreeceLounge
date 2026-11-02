@@ -4,10 +4,9 @@ import { Btn, TopBar } from './ui'
 import Login from './Login'
 import StaffAdmin from './StaffAdmin'
 import Waiter from './Waiter'
-import Queue from './Queue'
+import MyOrders from './MyOrders'
 import BarStock from './BarStock'
 import Approvals from './Approvals'
-import Handover from './Handover'
 import Recon from './Recon'
 import Purchasing from './Purchasing'
 import Expenses from './Expenses'
@@ -31,7 +30,6 @@ export default function App() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [problem, setProblem] = useState('')
   const [view, setView] = useState<View>('home')
-  const [queueStations, setQueueStations] = useState<string[]>([])
   const [unsent, setUnsent] = useState(0)
 
   useEffect(() => {
@@ -73,7 +71,6 @@ export default function App() {
   const items = profile ? navItems(profile) : []
   const open = (it: NavItem | 'home') => {
     if (it === 'home') { setView('home'); return }
-    setQueueStations(it.stations ?? [])
     setView(it.view)
   }
 
@@ -112,10 +109,9 @@ export default function App() {
     <>
       {view === 'home' && homeScreen(p)}
       {view === 'waiter' && <Waiter profile={p} onDone={home} onLock={lock} />}
-      {view === 'queue' && <Queue profile={p} stations={queueStations} onDone={home} />}
+      {view === 'myorders' && <MyOrders profile={p} onDone={home} />}
       {view === 'stock' && <BarStock profile={p} onDone={home} />}
       {view === 'approvals' && <Approvals onDone={home} />}
-      {view === 'handover' && <Handover onDone={home} />}
       {view === 'recon' && <Recon profile={p} onDone={home} />}
       {view === 'purchasing' && <Purchasing profile={p} onDone={home} />}
       {view === 'expenses' && <Expenses profile={p} onDone={home} />}
@@ -137,7 +133,7 @@ export default function App() {
     return (
       <div className="h-full">
         <FeedbackHost />
-        <OfficeShell profile={profile} items={items} activeId={navId(view, queueStations)}
+        <OfficeShell profile={profile} items={items} activeId={navId(view)}
                      onGo={open} onSignOut={switchUser} unsent={unsent}>
           {screen(profile)}
         </OfficeShell>

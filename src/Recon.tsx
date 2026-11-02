@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
-import { kes, uid } from './lib'
+import { kes } from './lib'
+import { STATION_LABEL, Station } from './sale'
 
-type Tab = 'cash' | 'mpesa' | 'close'
-type CashRow = { waiter_id: string; full_name: string; staff_no: string; business_date: string; expected_cash: number
-  declared: number | null; actual: number | null; received: boolean; variance: number | null; received_by_name: string | null; notes: string | null }
-type MpesaRow = { payment_id: string; txn_time: string; code: string; amount: number; waiter_name: string
-  verification: string; matched_ref: string | null; discrepancy_reason: string | null; verified_by_name: string | null }
+type Tab = 'slips' | 'close'
+type Slip = {
+  captain_order_id: string; slip_no: number; order_no: number; station: Station; created_at: string
+  waiter_name: string; table_number: string | null; customer_name: string | null
+  lines: { qty: number; name: string }[] | null; total: number; reprints: number
+  seen_at: string | null; voided_at: string | null; void_reason: string | null; void_pending: boolean
+}
 type Summary = Record<string, number | string | null>
 type Exc = { kind: string; detail: string; amount: number | null }
 
@@ -16,27 +19,27 @@ const today = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 1
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 
 export default function Recon({ profile, onDone }: { profile: Profile; onDone: () => void }) {
-  const [tab, setTab] = useState<Tab>('cash')
+  const [tab, setTab] = useState<Tab>('slips')
   const [date, setDate] = useState(today())
   const [msg, setMsg] = useState('')
   const [bad, setBad] = useState(false)
-  const flash = (m: string, isBad = false) => { setMsg(m); setBad(isBad) }
+  const flash = useCallback((m: string, isBad = false) => { setMsg(m); setBad(isBad) }, [])
 
   const tabBtn = (t: Tab, n: string) => (
     <button key={t} onClick={() => { setTab(t); setMsg('') }}
-      className={`h-14 rounded-xl px-6 text-xl font-semibold ${tab === t ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{n}</button>)
+      className={`h-14 rounded-xl px-6 text-xl font-semibold ${tab === t ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{n}</button>
+  )
 
   return (
     <div className="mx-auto max-w-6xl p-4">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="mr-4 text-3xl font-bold">Reconciliation</h2>
-        {tabBtn('cash', 'Cash')}{tabBtn('mpesa', 'M-Pesa')}{tabBtn('close', 'Day close')}
+        {tabBtn('slips', 'Captain orders')}{tabBtn('close', 'Day close')}
         <input type="date" className={input + ' ml-auto'} value={date} onChange={e => setDate(e.target.value)} />
         <HomeBtn onClick={onDone} className="!h-12" />
       </div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
-      {tab === 'cash' && <Cash date={date} profile={profile} flash={flash} />}
-      {tab === 'mpesa' && <Mpesa date={date} profile={profile} flash={flash} />}
+      {tab === 'slips' && <Slips date={date} profile={profile} flash={flash} />}
       {tab === 'close' && <Close date={date} profile={profile} flash={flash} />}
     </div>
   )
@@ -44,120 +47,76 @@ export default function Recon({ profile, onDone }: { profile: Profile; onDone: (
 
 type P = { date: string; profile: Profile; flash: (m: string, bad?: boolean) => void }
 
-function Cash({ date, profile, flash }: P) {
-  const [rows, setRows] = useState<CashRow[]>([])
-  const [sel, setSel] = useState<string | null>(null)
-  const [actual, setActual] = useState('')
-  const [note, setNote] = useState('')
+// The accountant collects the captain orders from the bar, choma zone and restaurant, and ticks each one off here.
+// A slip that is in the system but not in the pile is a missing slip: it shows up as an exception for the day close.
+function Slips({ date, profile, flash }: P) {
+  const [rows, setRows] = useState<Slip[]>([])
+  const [filter, setFilter] = useState<'missing' | 'seen' | 'voided' | 'all'>('missing')
+  const [station, setStation] = useState<'all' | Station>('all')
+  const [sel, setSel] = useState<Set<string>>(new Set())
   const [busy, setBusy] = useState(false)
-  const key = useRef(uid())
   const load = useCallback(async () => {
-    const { data } = await supabase.from('recon_cash').select('*').eq('business_date', date).order('full_name')
-    setRows((data ?? []) as CashRow[])
+    const { data } = await supabase.from('sales_slips').select('*').eq('business_date', date).order('slip_no')
+    setRows((data ?? []) as Slip[]); setSel(new Set())
   }, [date])
   useEffect(() => { load() }, [load])
 
-  const receive = async (r: CashRow) => {
-    if (busy) return
+  const live = rows.filter(r => !r.voided_at)
+  const shown = rows.filter(r => (station === 'all' || r.station === station) && (
+    filter === 'all' ? true : filter === 'voided' ? !!r.voided_at : filter === 'seen' ? !r.voided_at && !!r.seen_at : !r.voided_at && !r.seen_at))
+  const allowed = can(profile, 'recon.view_all')
+  const toggle = (id: string) => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const mark = async (seen: boolean) => {
+    if (busy || sel.size === 0) return
     setBusy(true)
-    const { error } = await supabase.rpc('receive_cash', { p_waiter: r.waiter_id, p_date: date, p_actual: Number(actual), p_notes: note || null, p_key: key.current })
+    const { error } = await supabase.rpc('mark_slips_seen', { p_ids: Array.from(sel), p_seen: seen })
     setBusy(false)
     if (error) { flash(error.message, true); return }
-    flash(`Cash received from ${r.full_name}.`); setSel(null); setActual(''); setNote(''); key.current = uid(); load()
+    flash(seen ? `${sel.size} slip(s) ticked off.` : `${sel.size} slip(s) un-ticked.`); load()
   }
-  const allowed = can(profile, 'handover.receive')
-
-  return (
-    <div className="space-y-2">
-      {rows.length === 0 && <div className="text-xl text-slate-400">No cash for this day.</div>}
-      {rows.map(r => {
-        const v = r.variance
-        return (
-          <div key={r.waiter_id} className="rounded-xl bg-slate-800 p-3">
-            <div className="flex flex-wrap items-center gap-4 text-lg">
-              <div className="w-48 text-xl font-semibold">{r.full_name}<span className="ml-2 text-sm text-slate-400">{r.staff_no}</span></div>
-              <div className="w-40">Expected <b>{kes(r.expected_cash)}</b></div>
-              <div className="w-40">Declared <b>{r.declared == null ? '—' : kes(r.declared)}</b></div>
-              <div className="w-40">Received <b>{r.received ? kes(r.actual) : '—'}</b></div>
-              {r.received && v !== null && (
-                <span className={`rounded px-2 py-1 font-bold ${v === 0 ? 'bg-green-700' : v > 0 ? 'bg-red-700' : 'bg-amber-600 text-on-accent'}`}>
-                  {v === 0 ? 'OK' : v > 0 ? `SHORT ${kes(v)}` : `SURPLUS ${kes(-v)}`}</span>)}
-              {!r.received && allowed && <Btn className="ml-auto !h-12" onClick={() => { setSel(r.waiter_id); setActual(''); setNote('') }}>Receive cash</Btn>}
-            </div>
-            {r.notes && <div className="mt-1 text-slate-300">Note: {r.notes}</div>}
-            {sel === r.waiter_id && (
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <input className={input + ' w-48'} type="number" min="0" placeholder="Cash counted" value={actual} onChange={e => setActual(e.target.value)} />
-                <input className={input + ' w-96'} placeholder="Reason (required if different from expected)" value={note} onChange={e => setNote(e.target.value)} />
-                <Btn className="!h-12" onClick={() => receive(r)} disabled={busy || actual === ''}>{busy ? 'Saving…' : 'Confirm'}</Btn>
-                <Btn kind="ghost" className="!h-12" onClick={() => setSel(null)}>Cancel</Btn>
-              </div>)}
-          </div>)
-      })}
-    </div>
-  )
-}
-
-function Mpesa({ date, profile, flash }: P) {
-  const [rows, setRows] = useState<MpesaRow[]>([])
-  const [filter, setFilter] = useState<'all' | 'recorded' | 'verified' | 'disputed'>('recorded')
-  const [sel, setSel] = useState<{ id: string; mode: 'verified' | 'disputed' } | null>(null)
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const load = useCallback(async () => {
-    const { data } = await supabase.from('recon_mpesa').select('*').eq('business_date', date).order('txn_time')
-    setRows((data ?? []) as MpesaRow[])
-  }, [date])
-  useEffect(() => { load() }, [load])
-
-  const act = async () => {
-    if (!sel || busy) return
-    setBusy(true)
-    const { error } = await supabase.rpc('verify_mpesa', {
-      p_payment: sel.id, p_status: sel.mode, p_ref: sel.mode === 'verified' ? text || null : null, p_reason: sel.mode === 'disputed' ? text : null })
-    setBusy(false)
-    if (error) { flash(error.message, true); return }
-    flash(sel.mode === 'verified' ? 'Verified.' : 'Marked as disputed.'); setSel(null); setText(''); load()
+  const stat = (st: Station) => {
+    const mine = live.filter(r => r.station === st)
+    return `${STATION_LABEL[st]}: ${mine.filter(r => r.seen_at).length} of ${mine.length} seen · ${kes(mine.reduce((t, r) => t + Number(r.total), 0))}`
   }
-  const shown = rows.filter(r => filter === 'all' || r.verification === filter)
-  const total = (s: string) => rows.filter(r => r.verification === s).reduce((a, r) => a + Number(r.amount), 0)
-  const allowed = can(profile, 'mpesa.verify')
   const chip = (f: typeof filter, n: string) => (
     <button key={f} onClick={() => setFilter(f)} className={`h-12 rounded-lg px-4 text-lg font-semibold ${filter === f ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{n}</button>)
-  const badge = (v: string) => v === 'verified' ? 'bg-green-700' : v === 'disputed' ? 'bg-red-700' : 'bg-slate-600'
+  const schip = (s: typeof station, n: string) => (
+    <button key={s} onClick={() => setStation(s)} className={`h-12 rounded-lg px-4 text-lg font-semibold ${station === s ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{n}</button>)
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        {chip('recorded', `Awaiting (${kes(total('recorded'))})`)}{chip('verified', `Verified (${kes(total('verified'))})`)}
-        {chip('disputed', `Disputed (${kes(total('disputed'))})`)}{chip('all', 'All')}
+      <div className="mb-3 grid gap-2 rounded-xl bg-slate-800 p-3 text-lg sm:grid-cols-3">
+        {(['bar', 'choma', 'restaurant'] as Station[]).map(s => <div key={s}>{stat(s)}</div>)}
       </div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        {chip('missing', `Not seen (${live.filter(r => !r.seen_at).length})`)}{chip('seen', 'Seen')}{chip('voided', `Voided (${rows.filter(r => r.voided_at).length})`)}{chip('all', 'All')}
+        <span className="mx-2 text-slate-500">|</span>
+        {schip('all', 'All stations')}{schip('bar', 'Bar')}{schip('choma', 'Choma zone')}{schip('restaurant', 'Restaurant')}
+      </div>
+      {allowed && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <Btn kind="ghost" className="!h-12" onClick={() => setSel(new Set(shown.filter(r => !r.voided_at).map(r => r.captain_order_id)))}>Select all shown</Btn>
+          <Btn className="!h-12" disabled={busy || sel.size === 0} onClick={() => mark(true)}>Tick off selected ({sel.size})</Btn>
+          <Btn kind="ghost" className="!h-12" disabled={busy || sel.size === 0} onClick={() => mark(false)}>Un-tick</Btn>
+        </div>
+      )}
       <div className="space-y-2">
         {shown.length === 0 && <div className="text-xl text-slate-400">Nothing here.</div>}
         {shown.map(r => (
-          <div key={r.payment_id} className="rounded-xl bg-slate-800 p-3">
-            <div className="flex flex-wrap items-center gap-4 text-lg">
-              <div className="w-40 font-mono text-xl font-bold">{r.code}</div>
-              <div className="w-36 text-xl font-semibold">{kes(r.amount)}</div>
-              <div className="w-44">{r.waiter_name}</div>
-              <div className="w-24 text-slate-300">{new Date(r.txn_time).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</div>
-              <span className={`rounded px-2 py-1 font-semibold ${badge(r.verification)}`}>{r.verification === 'recorded' ? 'Awaiting verification' : r.verification}</span>
-              {allowed && r.verification !== 'verified' && (
-                <span className="ml-auto flex gap-2">
-                  <Btn className="!h-12" onClick={() => { setSel({ id: r.payment_id, mode: 'verified' }); setText('') }}>Verify</Btn>
-                  <Btn kind="danger" className="!h-12" onClick={() => { setSel({ id: r.payment_id, mode: 'disputed' }); setText('') }}>Dispute</Btn>
-                </span>)}
-            </div>
-            {(r.matched_ref || r.discrepancy_reason) && <div className="mt-1 text-slate-300">
-              {r.matched_ref && <>Statement ref: {r.matched_ref} </>}{r.discrepancy_reason && <>Reason: {r.discrepancy_reason}</>}
-              {r.verified_by_name && <> · by {r.verified_by_name}</>}</div>}
-            {sel?.id === r.payment_id && (
-              <div className="mt-3 flex flex-wrap items-center gap-3">
-                <input className={input + ' w-96'} value={text} onChange={e => setText(e.target.value)}
-                  placeholder={sel.mode === 'verified' ? 'Statement reference (optional)' : 'Why is it disputed? (required)'} />
-                <Btn className="!h-12" onClick={act} disabled={busy || (sel.mode === 'disputed' && !text.trim())}>{busy ? 'Saving…' : sel.mode === 'verified' ? 'Confirm verified' : 'Confirm dispute'}</Btn>
-                <Btn kind="ghost" className="!h-12" onClick={() => setSel(null)}>Cancel</Btn>
-              </div>)}
+          <div key={r.captain_order_id} className={`flex flex-wrap items-center gap-3 rounded-xl p-3 ${r.voided_at ? 'bg-red-950' : r.seen_at ? 'bg-slate-800' : 'bg-slate-700'}`}>
+            {allowed && !r.voided_at && (
+              <input type="checkbox" className="h-7 w-7" checked={sel.has(r.captain_order_id)} onChange={() => toggle(r.captain_order_id)} aria-label={`Select slip ${r.slip_no}`} />)}
+            <div className="w-20 text-xl font-bold">#{r.slip_no}</div>
+            <div className="w-32 text-lg font-semibold">{STATION_LABEL[r.station]}</div>
+            <div className="w-20 text-lg text-slate-300">{new Date(r.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</div>
+            <div className="w-40 text-lg">{r.waiter_name}</div>
+            <div className="w-28 text-lg">{r.table_number ? `Table ${r.table_number}` : r.customer_name}</div>
+            <div className="min-w-0 flex-1 text-base text-slate-300">{(r.lines ?? []).map(l => `${l.qty} × ${l.name}`).join(', ')}</div>
+            <div className="w-28 text-right text-xl font-semibold">{kes(r.total)}</div>
+            {r.voided_at && <span className="rounded bg-red-700 px-2 py-1 font-semibold">VOID · {r.void_reason}</span>}
+            {r.void_pending && !r.voided_at && <span className="rounded bg-amber-600 px-2 py-1 font-semibold text-on-accent">Void asked</span>}
+            {r.seen_at && !r.voided_at && <span className="rounded bg-green-700 px-2 py-1 font-semibold">Seen</span>}
+            {r.reprints > 0 && <span className="rounded bg-slate-600 px-2 py-1 text-sm font-semibold">Reprinted ×{r.reprints}</span>}
           </div>))}
       </div>
     </div>
@@ -190,7 +149,7 @@ function Close({ date, profile, flash }: P) {
   if (!s) return <div className="text-xl text-slate-400">Loading…</div>
   const n = (k: string) => Number(s[k] ?? 0)
   const status = (s.close_status as string | null) ?? 'not closed'
-  const open = n('cash_unreceived') + n('mpesa_unverified_count') + n('open_tabs')
+  const open = n('slips_missing') + n('voids_pending') + n('open_tabs')
   const row = (label: string, v: string, warn = false) => (
     <div className="flex justify-between border-b border-slate-700 py-2 text-xl"><span>{label}</span><b className={warn ? 'text-red-400' : ''}>{v}</b></div>)
 
@@ -199,20 +158,17 @@ function Close({ date, profile, flash }: P) {
       <div className="rounded-xl bg-slate-800 p-4">
         <div className="mb-2 flex items-center gap-3 text-2xl font-bold">Day {date}
           <span className="rounded bg-slate-600 px-3 py-1 text-lg">{status}</span></div>
-        {row('Sales (served items)', kes(n('sales_total')))}
-        {row('Cash expected', kes(n('cash_expected')))}
-        {row('Cash received', kes(n('cash_received')))}
+        {row('Sales (captain orders, not voided)', kes(n('sales_total')))}
+        {row('Captain orders in the system', String(n('slips_total')))}
+        {row('Captain orders seen', String(n('slips_seen')))}
+        {row('Captain orders NOT seen', String(n('slips_missing')), n('slips_missing') > 0)}
+        {row('Voided orders', String(n('slips_voided')))}
+        {row('Voids waiting for the manager', String(n('voids_pending')), n('voids_pending') > 0)}
         {row('Cash paid out as expenses', kes(spent))}
-        {row('Cash to bank (received − expenses)', kes(n('cash_received') - spent))}
-        {row('Cash variance (+ short)', kes(n('cash_variance')), n('cash_variance') !== 0)}
-        {row('Cash not yet received', String(n('cash_unreceived')), n('cash_unreceived') > 0)}
-        {row('M-Pesa total', kes(n('mpesa_total')))}
-        {row('M-Pesa verified', kes(n('mpesa_verified')))}
-        {row('M-Pesa disputed', kes(n('mpesa_disputed')), n('mpesa_disputed') > 0)}
-        {row('M-Pesa not verified', `${kes(n('mpesa_unverified'))} (${n('mpesa_unverified_count')})`, n('mpesa_unverified_count') > 0)}
-        {row('Open tabs', `${n('open_tabs')} · ${kes(n('open_tabs_balance'))}`, n('open_tabs') > 0)}
+        {row('Old open tabs (from before the change)', `${n('open_tabs')} · ${kes(n('open_tabs_balance'))}`, n('open_tabs') > 0)}
         {row('Stock count variances', String(n('count_variances')), n('count_variances') > 0)}
         {row('Approvals pending', String(n('pending_approvals')), n('pending_approvals') > 0)}
+        <div className="mt-2 text-base text-slate-400">Cash and M-Pesa are checked outside the system (the waiters' books). Count the bar in Bar stock: expected stock comes from the captain orders.</div>
         {s.close_submitted_by && <div className="mt-2 text-slate-300">Submitted by {String(s.close_submitted_by)}{s.close_notes ? ` — ${String(s.close_notes)}` : ''}</div>}
 
         {status !== 'approved' && (

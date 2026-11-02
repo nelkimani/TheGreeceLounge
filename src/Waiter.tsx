@@ -2,75 +2,54 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, TERMINAL_CODE, Profile, can } from './supabase'
 import { AlphaKeys, Btn, HomeBtn } from './ui'
 import { Icon } from './icons'
-import { confirmDialog } from './feedback'
+import { confirmDialog, toast } from './feedback'
 import { CartLine, Draft, LOCK_AFTER_SEND, QUICK_NOTES, bumpFreq, clearDraft, isNetworkError, kes, listNotSent, loadDraft, loadFreq, saveDraft, uid } from './lib'
-import TabHub from './TabHub'
-import Pay from './Pay'
+import { STATION_LABEL, Sale, Station, printSale, stationOf } from './sale'
+import SaleDone from './SaleDone'
 
 type Table = { id: string; number: string; label: string | null }
-type Card = {
-  tab_id: string; table_number: string | null; customer_name: string | null; waiter_id: string
-  waiter_name: string; status: string; bill_total: number; paid: number; balance: number; pending_total: number
-}
 type Product = { id: string; name: string; selling_price: number; station: string; category: { name: string } | null }
-type ActiveTab = { id: string; label: string }
-type TabItem = { item_id: string; product_name: string; qty: number; status: string }
-
-const STATUS_TEXT: Record<string, string> = {
-  new: 'Sent', accepted: 'Accepted', preparing: 'Preparing', ready: 'READY – collect', served: 'Served',
-}
+// Who the sale is for. A table, or a name (takeaway / bar sale). Tables are only a label now: nothing stays "open".
+type Target = { table: Table | null; customer: string | null; label: string; draftKey: string }
 
 export default function Waiter({ profile, onDone, onLock }: { profile: Profile; onDone: () => void; onLock: () => void }) {
   const [tables, setTables] = useState<Table[]>([])
-  const [cards, setCards] = useState<Card[]>([])
   const [products, setProducts] = useState<Product[]>([])
-  const [active, setActive] = useState<ActiveTab | null>(null)
-  const [screen, setScreen] = useState<'order' | 'hub' | 'pay'>('order')
-  const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState('')
-  const [taken, setTaken] = useState<{ table_number: string | number; tab_id: string | null; waiter_id: string | null; waiter_name: string | null }[]>([])
+  const [target, setTarget] = useState<Target | null>(null)
+  const [sale, setSale] = useState<Sale | null>(null)
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
 
   const load = useCallback(async () => {
-    const [t, c, p, ts] = await Promise.all([
+    const [t, p] = await Promise.all([
       supabase.from('floor_tables').select('id, number, label'),
-      supabase.from('tab_cards').select('*'),
       supabase.from('products').select('id, name, selling_price, station, category:categories(name)')
         .eq('available', true).not('selling_price', 'is', null).order('name'),
-      supabase.from('table_status').select('table_number, tab_id, waiter_id, waiter_name'),
     ])
-    if (ts.data) setTaken(ts.data as { table_number: string | number; tab_id: string | null; waiter_id: string | null; waiter_name: string | null }[])
     if (t.data) setTables((t.data as Table[]).sort((a, b) => Number(a.number) - Number(b.number)))
-    if (c.data) setCards(c.data as Card[])
     if (p.data) setProducts(p.data as unknown as Product[])
   }, [])
+  useEffect(() => { load() }, [load])
 
-  useEffect(() => {
-    load()
-    const ch = supabase.channel('waiter-' + uid())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tabs' }, load)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, load)
-      .subscribe()
-    const poll = setInterval(load, 15000)
-    return () => { supabase.removeChannel(ch); clearInterval(poll) }
-  }, [load])
-
-  // Retry any NOT SENT orders for this person with their original idempotency key.
+  // Retry any NOT SENT orders for this person with their original key (a retry can never make a second sale).
   const flushing = useRef(false)
   const flush = useCallback(async () => {
     if (flushing.current) return
     flushing.current = true
     for (const u of listNotSent(profile.id)) {
-      const { error } = await supabase.rpc('submit_order', {
-        p_tab: u.tab, p_items: u.draft.lines.map(l => ({ product_id: l.product_id, qty: l.qty, ...(l.notes ? { notes: l.notes } : {}) })),
+      const { data, error } = await supabase.rpc('submit_sale', {
+        p_table: u.draft.table ?? null, p_customer: u.draft.customer ?? null,
+        p_items: u.draft.lines.map(l => ({ product_id: l.product_id, qty: l.qty, ...(l.notes ? { notes: l.notes } : {}) })),
         p_terminal: TERMINAL_CODE, p_key: u.draft.key })
-      if (!error) clearDraft(profile.id, u.tab)
-      else if (!isNetworkError(error)) saveDraft(profile.id, u.tab, { ...u.draft, state: 'editing' })  // server refused: let the person fix it
+      if (!error) {
+        clearDraft(profile.id, u.tab)
+        const s = data as Sale
+        const r = await printSale(s)
+        toast(r.ok ? `Order #${s.order_no} sent and printed.` : `Order #${s.order_no} sent. Print it from My orders.`, r.ok ? 'ok' : 'info')
+      } else if (!isNetworkError(error)) saveDraft(profile.id, u.tab, { ...u.draft, state: 'editing' })  // server refused: let the person fix it
     }
     flushing.current = false
-    load()
-  }, [profile.id, load])
+  }, [profile.id])
   useEffect(() => {
     flush()
     const t = setInterval(flush, 8000)
@@ -78,121 +57,55 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
     return () => { clearInterval(t); window.removeEventListener('online', flush) }
   }, [flush])
 
-  const openTable = async (t: Table) => {
-    if (busy) return
-    setErr('')
-    const card = cards.find(c => c.table_number === t.number)
-    const other = taken.find(x => x.table_number === t.number && x.tab_id && x.waiter_id !== profile.id)
-    if (other && !card) { setErr(`Table ${t.number} is being served by ${other.waiter_name ?? 'another waiter'}.`); return }
-    if (card) { setScreen('hub'); setActive({ id: card.tab_id, label: `Table ${t.number}` }); return }
-    setBusy(true)
-    const { data, error } = await supabase.rpc('open_tab', { p_table: t.id, p_customer: null, p_key: uid() })
-    setBusy(false)
-    if (error) { setErr(error.message); return }
-    setScreen('order')
-    setActive({ id: (data as { id: string }).id, label: `Table ${t.number}` })
-    load()
+  if (sale) {
+    return <SaleDone sale={sale} onDone={() => { setSale(null); setTarget(null); if (LOCK_AFTER_SEND) onLock(); else onDone() }} />
   }
-  const openNamed = async () => {
-    if (busy || !name.trim()) return
-    setBusy(true); setErr('')
-    const { data, error } = await supabase.rpc('open_tab', { p_table: null, p_customer: name.trim(), p_key: uid() })
-    setBusy(false)
-    if (error) { setErr(error.message); return }
-    setScreen('order')
-    setActive({ id: (data as { id: string }).id, label: name.trim() })
-    setNaming(false); setName(''); load()
-  }
-
-  if (active && screen === 'hub') {
-    return <TabHub profile={profile} tab={active} onOrder={() => setScreen('order')} onPay={() => setScreen('pay')}
-      onBack={() => { setActive(null); load() }} />
-  }
-  if (active && screen === 'pay') {
-    return <Pay profile={profile} tab={active} onBack={() => setScreen('hub')}
-      onDone={() => { setActive(null); load() }} />
-  }
-  if (active) {
-    return <OrderScreen profile={profile} tab={active} products={products}
-      onBack={() => { setScreen('hub'); load() }} onSent={() => {
-        if (can(profile, 'station.bar')) { setScreen('hub'); load(); return }   // bartender: stay on the tab to serve, pay, close
-        setActive(null); load(); LOCK_AFTER_SEND ? onLock() : onDone() }} />
+  if (target) {
+    return <OrderScreen profile={profile} target={target} products={products}
+      onBack={() => setTarget(null)} onSent={s => setSale(s)} onSavedOffline={() => { setTarget(null); LOCK_AFTER_SEND ? onLock() : onDone() }} />
   }
 
   if (naming) {
+    const go = () => { const n = name.trim(); if (n) { setTarget({ table: null, customer: n, label: n, draftKey: 'named' }); setNaming(false); setName('') } }
     return (
       <div className="flex flex-col items-center gap-4 p-6">
-        <h2 className="text-3xl font-bold">Takeaway / named tab</h2>
+        <h2 className="text-3xl font-bold">Takeaway / named sale</h2>
         <div className="h-btn w-[min(40rem,100%)] rounded-xl border-2 border-amber-500 bg-slate-800 px-4 text-3xl leading-[var(--btn-h)]">
           {name || <span className="text-xl text-slate-500">Customer name</span>}
         </div>
         <AlphaKeys withSpace onKey={k => setName(n => (n + k).slice(0, 30))}
           onBack={() => setName(n => n.slice(0, -1))} onClear={() => setName('')} />
-        {err && <div className="rounded-lg bg-red-700 p-3 text-lg font-semibold">{err}</div>}
         <div className="flex gap-3">
           <Btn kind="ghost" onClick={() => { setNaming(false); setName('') }}>Cancel</Btn>
-          <Btn onClick={openNamed} disabled={busy || !name.trim()}>Open tab</Btn>
+          <Btn onClick={go} disabled={!name.trim()}>Start order</Btn>
         </div>
       </div>
     )
   }
 
-  const named = cards.filter(c => !c.table_number)
-  const BILL: Record<string, string> = { bill_requested: 'BILL', partially_paid: 'PART PAID' }
-  const tabTile = (c: Card, title: string, key: string, onClick: () => void) => {
-    const mine = c.waiter_id === profile.id
-    return (
-      <button key={key} onClick={onClick}
-        className={`flex h-full flex-col justify-between rounded-xl p-3 text-left active:opacity-80 ${mine ? 'bg-amber-600 text-on-accent' : 'bg-slate-600'}`}>
-        <span className="line-clamp-2 break-words text-2xl font-bold leading-tight">{title}</span>
-        <div className="flex min-w-0 items-end justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-base">{mine ? 'Your tab' : c.waiter_name}</div>
-            <div className="text-lg font-semibold">{kes(c.balance + c.pending_total)}</div>
-          </div>
-          {BILL[c.status] && <span className="shrink-0 rounded bg-slate-900 px-2 py-0.5 text-xs font-bold tracking-wide text-slate-100">{BILL[c.status]}</span>}
-        </div>
-      </button>
-    )
-  }
-  const dot = (cls: string) => <span className={`inline-block h-3 w-3 rounded-full ${cls}`} />
   return (
     <div className="p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <h2 className="mr-auto text-3xl font-bold">Tables</h2>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <h2 className="mr-auto text-3xl font-bold">Which table?</h2>
         <HomeBtn onClick={onDone} />
-        <Btn onClick={() => setNaming(true)}>+ Takeaway / named tab</Btn>
+        {can(profile, 'bar.direct_sale') && <Btn kind="ghost" onClick={() => setTarget({ table: null, customer: 'Bar sale', label: 'Bar sale', draftKey: 'bar' })}>Bar sale</Btn>}
+        <Btn onClick={() => setNaming(true)}>+ Takeaway / named</Btn>
       </div>
-      <div className="mb-3 flex flex-wrap gap-x-5 gap-y-1 text-base text-slate-300">
-        <span className="flex items-center gap-2">{dot('bg-green-400')} Free</span>
-        <span className="flex items-center gap-2">{dot('bg-amber-600')} Your tab</span>
-        <span className="flex items-center gap-2">{dot('bg-slate-500')} Another waiter</span>
-        <span className="flex items-center gap-2"><span className="rounded bg-slate-700 px-1.5 text-xs font-bold">BILL</span> Bill requested</span>
-      </div>
-      {err && <div className="mb-3 rounded-lg bg-red-700 p-3 text-lg font-semibold">{err}</div>}
       <div className="grid-tables">
-        {tables.map(t => {
-          const c = cards.find(x => x.table_number === t.number)
-          const other = !c ? taken.find(x => x.table_number === t.number && x.tab_id) : undefined
-          if (c) return tabTile(c, `Table ${t.number}`, t.id, () => openTable(t))
-          return (
-            <button key={t.id} onClick={() => openTable(t)}
-              className={`flex h-full flex-col justify-between rounded-xl p-3 text-left active:opacity-80 ${other ? 'bg-slate-700 opacity-70' : 'border-2 border-green-400/60 bg-slate-800'}`}>
-              <div className="text-2xl font-bold leading-tight">Table {t.number}</div>
-              {other ? <div className="truncate text-base text-slate-300">In use · {other.waiter_name}</div>
-                     : <div className="flex items-center gap-2 text-lg font-semibold text-green-400">{dot('bg-green-400')} Free</div>}
-            </button>
-          )
-        })}
-        {named.map(c => tabTile(c, c.customer_name ?? 'Tab', c.tab_id, () => { setScreen('hub'); setActive({ id: c.tab_id, label: c.customer_name ?? 'Tab' }) }))}
+        {tables.map(t => (
+          <button key={t.id} onClick={() => setTarget({ table: t, customer: null, label: `Table ${t.number}`, draftKey: t.id })}
+            className="flex h-full flex-col justify-between rounded-xl border-2 border-green-400/60 bg-slate-800 p-3 text-left active:opacity-80">
+            <div className="text-2xl font-bold leading-tight">Table {t.number}</div>
+          </button>
+        ))}
       </div>
     </div>
   )
 }
 
-function OrderScreen({ profile, tab, products, onBack, onSent }:
-  { profile: Profile; tab: ActiveTab; products: Product[]; onBack: () => void; onSent: () => void }) {
-  const initial = useMemo(() => loadDraft(profile.id, tab.id), [profile.id, tab.id])
+function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline }:
+  { profile: Profile; target: Target; products: Product[]; onBack: () => void; onSent: (s: Sale) => void; onSavedOffline: () => void }) {
+  const initial = useMemo(() => loadDraft(profile.id, target.draftKey), [profile.id, target.draftKey])
   const [lines, setLines] = useState<CartLine[]>(initial?.lines ?? [])
   const [state, setState] = useState<Draft['state']>(initial?.state ?? 'editing')
   const key = useRef(initial?.key ?? uid())
@@ -205,9 +118,7 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
   const [noteFor, setNoteFor] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
-  const [ticket, setTicket] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
-  const [items, setItems] = useState<TabItem[]>([])
 
   const cats = useMemo(() => [...(topIds.length >= 4 ? [MINE] : []), 'All', ...Array.from(new Set(products.map(p => p.category?.name ?? 'Other')))], [products, topIds])
   const query = q.trim().toLowerCase()
@@ -217,11 +128,17 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
   const inCart = new Map(lines.map(l => [l.product_id, l.qty]))
   const count = lines.reduce((s, l) => s + l.qty, 0)
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0)
+  // Which captain orders this order will print
+  const slipCount = new Map<Station, number>()
+  for (const l of lines) {
+    const st = stationOf(products.find(p => p.id === l.product_id)?.station ?? 'none')
+    slipCount.set(st, (slipCount.get(st) ?? 0) + l.qty)
+  }
 
   const persist = (next: CartLine[], st: Draft['state'] = state) => {
     setLines(next)
-    if (next.length === 0) clearDraft(profile.id, tab.id)
-    else saveDraft(profile.id, tab.id, { key: key.current, lines: next, state: st })
+    if (next.length === 0) clearDraft(profile.id, target.draftKey)
+    else saveDraft(profile.id, target.draftKey, { key: key.current, lines: next, state: st, table: target.table?.id ?? null, customer: target.customer })
   }
   const add = (p: Product) => {
     if (state === 'not_sent') return
@@ -241,59 +158,35 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
     persist(lines.map(l => l.product_id === id ? { ...l, qty: l.qty + d } : l).filter(l => l.qty > 0))
   }
 
-  const loadItems = useCallback(async () => {
-    const { data } = await supabase.from('station_queue')
-      .select('item_id, product_name, qty, status').eq('tab_id', tab.id).order('created_at')
-    if (data) setItems(data as TabItem[])
-  }, [tab.id])
-  useEffect(() => { loadItems(); const t = setInterval(loadItems, 5000); return () => clearInterval(t) }, [loadItems])
-
-  const markServed = async (id: string) => {
-    const { error } = await supabase.rpc('update_item_status', { p_item: id, p_status: 'served' })
-    if (error) setErr(error.message)
-    loadItems()
-  }
-
   const send = async () => {
     if (sending || lines.length === 0) return          // in-flight lock: double taps do nothing
     setSending(true); setErr('')
-    const { data, error } = await supabase.rpc('submit_order', {
-      p_tab: tab.id, p_items: lines.map(l => ({ product_id: l.product_id, qty: l.qty, ...(l.notes ? { notes: l.notes } : {}) })),
+    const { data, error } = await supabase.rpc('submit_sale', {
+      p_table: target.table?.id ?? null, p_customer: target.customer,
+      p_items: lines.map(l => ({ product_id: l.product_id, qty: l.qty, ...(l.notes ? { notes: l.notes } : {}) })),
       p_terminal: TERMINAL_CODE, p_key: key.current })
     if (error) {
       if (isNetworkError(error)) {
-        saveDraft(profile.id, tab.id, { key: key.current, lines, state: 'not_sent' })
+        saveDraft(profile.id, target.draftKey, { key: key.current, lines, state: 'not_sent', table: target.table?.id ?? null, customer: target.customer })
         setState('not_sent'); setSaved(true)
       } else setErr(error.message)
       setSending(false); return
     }
-    clearDraft(profile.id, tab.id)
-    setTicket((data as { ticket_no: number }).ticket_no)
-    setTimeout(onSent, 2500)
+    clearDraft(profile.id, target.draftKey)
+    onSent(data as Sale)
   }
 
-  if (ticket !== null) {
-    return (
-      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-green-700 text-center">
-        <div className="text-6xl font-bold">Order #{ticket} received</div>
-        <div className="text-3xl">by Bar &amp; Kitchen · {tab.label}</div>
-      </div>
-    )
-  }
   if (saved) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-red-800 text-center">
         <div className="text-6xl font-bold">NOT SENT</div>
-        <div className="max-w-2xl text-2xl">No connection. The order is saved on this screen and will send by itself when the network is back. Do not re-enter it.</div>
-        <Btn onClick={onSent}>OK</Btn>
+        <div className="max-w-2xl text-2xl">No connection. The order is saved on this screen and will send and print by itself when the network is back. Do not re-enter it.</div>
+        <Btn onClick={onSavedOffline}>OK</Btn>
       </div>
     )
   }
 
   const btn = 'h-[3.75rem] w-full rounded-xl px-3 text-left text-xl font-semibold'
-  const CHIP: Record<string, string> = {
-    new: 'bg-amber-600 text-on-accent', accepted: 'bg-slate-600', preparing: 'bg-slate-600', ready: 'bg-green-700', served: 'bg-slate-700 text-slate-400',
-  }
   const noteLine = lines.find(l => l.product_id === noteFor)
   return (
     <div className="order-layout fill-screen">
@@ -331,14 +224,14 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
 
       <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-slate-800 p-3">
         <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 truncate text-2xl font-bold">{tab.label}</div>
+          <div className="min-w-0 flex-1 truncate text-2xl font-bold">{target.label}</div>
           {lines.length > 0 && state !== 'not_sent' &&
             <button onClick={clearOrder} className="h-10 shrink-0 rounded-lg bg-slate-700 px-3 text-base font-semibold">Clear</button>}
         </div>
         {state === 'not_sent' && <div className="rounded bg-red-700 p-2 font-semibold">NOT SENT – waiting to retry</div>}
         <div className="flex-1 space-y-2 overflow-y-auto">
           <div className="flex items-center justify-between text-sm font-semibold uppercase tracking-wider text-slate-400">
-            <span>New order</span><span>{count} item{count === 1 ? '' : 's'}</span>
+            <span>Order</span><span>{count} item{count === 1 ? '' : 's'}</span>
           </div>
           {lines.length === 0 && <div className="rounded-lg border-2 border-dashed border-slate-600 p-4 text-center text-lg text-slate-400">Tap a product to add it</div>}
           {lines.map(l => (
@@ -359,23 +252,17 @@ function OrderScreen({ profile, tab, products, onBack, onSent }:
               </div>
             </div>
           ))}
-          {items.length > 0 && <div className="border-t border-slate-600 pt-2 text-sm font-semibold uppercase tracking-wider text-slate-400">Already on this tab</div>}
-          {items.map(i => (
-            <div key={i.item_id} className={`flex items-center gap-2 rounded-lg p-1.5 ${i.status === 'ready' ? 'bg-green-800' : ''}`}>
-              <div className="min-w-0 flex-1 text-base leading-tight">{i.qty} × {i.product_name}</div>
-              {i.status === 'ready'
-                ? <button className="h-12 shrink-0 rounded-lg bg-green-600 px-3 font-semibold" onClick={() => markServed(i.item_id)}>Served</button>
-                : <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-sm font-semibold ${CHIP[i.status] ?? 'bg-slate-600'}`}>{STATUS_TEXT[i.status] ?? i.status}</span>}
-            </div>
-          ))}
         </div>
         {err && <div className="rounded bg-red-700 p-2 font-semibold">{err}</div>}
+        {slipCount.size > 0 && (
+          <div className="text-base text-slate-300">Prints: customer receipt + {Array.from(slipCount.keys()).map(s => STATION_LABEL[s]).join(' + ')} captain order{slipCount.size > 1 ? 's' : ''}</div>
+        )}
         <div className="flex items-baseline justify-between border-t border-slate-600 pt-2">
           <span className="text-lg text-slate-400">Total</span>
           <span className="text-4xl font-bold">{kes(total)}</span>
         </div>
         <Btn onClick={send} disabled={sending || lines.length === 0}>
-          {sending ? 'Sending…' : state === 'not_sent' ? 'Retry send' : 'SEND ORDER'}
+          {sending ? 'Sending…' : state === 'not_sent' ? 'Retry send' : 'SEND & PRINT'}
         </Btn>
       </div>
       {noteLine && <NoteSheet name={noteLine.name} initial={noteLine.notes ?? ''} onSave={t => setNote(noteLine.product_id, t)} onClose={() => setNoteFor(null)} />}

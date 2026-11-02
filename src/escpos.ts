@@ -66,7 +66,7 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
   const rule = (ch = '-') => line(ch.repeat(COLS))
 
   raw(ESC, 0x40)                                             // reset the printer
-  align(1); bold(true); size(0x11); line('THE GLIZ LOUNGE'); size(0x00); bold(false)
+  align(1); bold(true); size(0x11); line('THE GREECE LOUNGE'); size(0x00); bold(false)
   line('CHUKA-NDAGANI')
   line(clean(d.heading))
   if (d.notReceipt) { bold(true); rule('='); line('NOT A RECEIPT'); rule('='); bold(false) }
@@ -96,5 +96,58 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
 
   raw(ESC, 0x64, 5)                                          // feed 5 lines past the print head
   raw(GS, 0x56, 0x01)                                        // partial cut (ignored if no cutter)
+  return Uint8Array.from(bytes)
+}
+
+// ───────────── Captain order: the slip a station serves from ─────────────
+export type CaptainData = {
+  station: 'bar' | 'choma' | 'restaurant'
+  slipNo: number
+  orderNo: number
+  label: string                                  // "Table 7" or the customer name
+  waiter: string
+  lines: { qty: number; name: string; notes?: string | null }[]
+  copy?: boolean                                 // a reprint
+  voided?: boolean                               // a VOID slip: tells the station to cancel
+}
+const STATION_TITLE = { bar: 'BAR', choma: 'CHOMA ZONE', restaurant: 'RESTAURANT' } as const
+
+export function encodeCaptain(d: CaptainData, at: Date = new Date()): Uint8Array {
+  const bytes: number[] = []
+  const raw = (...b: number[]) => bytes.push(...b)
+  const text = (s: string) => { for (const ch of s) bytes.push(ch.charCodeAt(0)) }
+  const line = (s = '') => { text(s); raw(LF) }
+  const align = (n: 0 | 1 | 2) => raw(ESC, 0x61, n)
+  const bold = (on: boolean) => raw(ESC, 0x45, on ? 1 : 0)
+  const size = (n: number) => raw(GS, 0x21, n)
+  const rule = (ch = '-') => line(ch.repeat(COLS))
+
+  raw(ESC, 0x40)
+  align(1); bold(true); size(0x11); line(STATION_TITLE[d.station]); size(0x00)
+  if (d.voided) {
+    size(0x11); line('*** VOID ***'); size(0x00)
+    line('CANCELLED - DO NOT SERVE')
+  } else line('CAPTAIN ORDER')
+  if (d.copy) line('** REPRINT **')
+  bold(false)
+  align(0); rule()
+  for (const t of twoColumn(`Slip #${d.slipNo}`, `Order #${d.orderNo}`)) line(t)
+  for (const t of twoColumn(`Waiter: ${d.waiter}`)) line(t)
+  for (const t of twoColumn(`For: ${d.label}`)) line(t)
+  line(clean(at.toLocaleString('en-KE')))
+  rule()
+
+  bold(true); size(0x01)                                     // double height keeps 48 columns
+  for (const l of d.lines) {
+    for (const t of twoColumn(`${Number(l.qty)} x ${l.name}`)) line(t)
+    if (l.notes) for (const t of twoColumn(`   ! ${l.notes}`)) line(t)
+  }
+  size(0x00); bold(false)
+  rule()
+  const count = d.lines.reduce((s, l) => s + Number(l.qty), 0)
+  align(1); line(`${count} item${count === 1 ? '' : 's'}`); align(0)
+
+  raw(ESC, 0x64, 5)
+  raw(GS, 0x56, 0x01)
   return Uint8Array.from(bytes)
 }

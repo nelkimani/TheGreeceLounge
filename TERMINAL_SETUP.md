@@ -21,7 +21,7 @@ Each terminal prints straight to its own USB printer from the browser (WebUSB, n
 
 Once per terminal:
 1. Plug in the printer, power it on, and open the site in Chrome or Edge.
-2. Make a payment (or open a bill), and on the receipt screen tap **Connect printer**. Choose "XP-80T" (or the printer-class device) in the list and press Connect. If the list is empty, tap **Show all USB devices**.
+2. Send any order (or open My orders > Reprint), and on the print screen tap **Connect printer**. Choose "XP-80T" (or the printer-class device) in the list and press Connect. If the list is empty, tap **Show all USB devices**.
 3. The status line turns green: "Printer: ...". The browser remembers it; after a restart it reconnects by itself.
 
 If the terminal is a Windows computer, Windows must hand the printer over to the browser first (one time, per printer):
@@ -48,3 +48,6 @@ Optional, one-tap printing with no print window:
 - Start Chrome with the `--kiosk-printing` flag (add it to the end of the Target in the Chrome shortcut's Properties). The Print button then prints straight away.
 
 Printing only prints. It never records a payment.
+
+## What prints when an order is sent
+Tapping SEND & PRINT prints, in this order, on that terminal's printer: the customer receipt, then one captain order each for the Bar, the Choma zone and the Restaurant (only the stations the order needs). The waiter carries each captain order to its station. If the printer is not connected, nothing prints by itself: connect it on the screen that appears, or pick each paper and use Print this.

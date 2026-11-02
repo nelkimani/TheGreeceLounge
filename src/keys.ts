@@ -33,5 +33,5 @@ export const SHORTCUTS: { keys: string[]; what: string }[] = [
   { keys: ['Tab'], what: 'Move to the next control (Shift + Tab goes back)' },
   { keys: ['↑', '↓'], what: 'Move up and down the sidebar' },
   { keys: ['Enter'], what: 'Confirm: press the highlighted button, or OK in a dialog' },
-  { keys: ['Esc'], what: 'Cancel: close a dialog, or go back on the payment screen' },
+  { keys: ['Esc'], what: 'Cancel: close a dialog, or go back' },
 ]

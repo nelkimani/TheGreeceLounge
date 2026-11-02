@@ -4,9 +4,9 @@ import { Btn, HomeBtn } from './ui'
 
 type Item = {
   id: string; kind: string; reason: string; status: string; created_at: string; requester_name: string
-  payload: { product_name?: string; qty?: number; type?: string } | null
+  payload: { product_name?: string; qty?: number; type?: string; summary?: string; total?: number; slip_no?: number; station?: string } | null
 }
-const KIND: Record<string, string> = { stock_out: 'Stock out' }
+const KIND: Record<string, string> = { stock_out: 'Stock out', order_void: 'Void order' }
 
 export default function Approvals({ onDone }: { onDone: () => void }) {
   const [items, setItems] = useState<Item[]>([])
@@ -36,7 +36,9 @@ export default function Approvals({ onDone }: { onDone: () => void }) {
         <span className="text-lg text-slate-300">{i.payload?.type?.replace('_', ' ')}</span>
         <span className="ml-auto text-base text-slate-400">{new Date(i.created_at).toLocaleString('en-KE')}</span>
       </div>
-      <div className="text-xl">{i.payload?.qty} × {i.payload?.product_name}</div>
+      {i.kind === 'order_void'
+        ? <div className="text-xl">{i.payload?.station} slip #{i.payload?.slip_no}: {i.payload?.summary} · KES {Number(i.payload?.total ?? 0).toLocaleString('en-KE')}</div>
+        : <div className="text-xl">{i.payload?.qty} × {i.payload?.product_name}</div>}
       <div className="text-lg text-slate-300">Requested by {i.requester_name} · Reason: {i.reason}</div>
       {actions
         ? <div className="mt-3 flex gap-3">
