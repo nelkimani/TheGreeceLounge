@@ -1,4 +1,4 @@
--- The Greece Lounge POS — 020: Products & prices screen (office)
+-- The Glizz Lounge POS — 020: Products & prices screen (office)
 -- Run in the Supabase SQL Editor after 019. Safe to run again.
 --
 -- Products can be READ by every signed-in account but never written directly. These functions are the

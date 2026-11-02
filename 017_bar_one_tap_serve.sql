@@ -1,4 +1,4 @@
--- Greece Lounge POS — 017: a bartender serves a bar item in ONE tap (no Accept / Start / Ready steps).
+-- The Glizz Lounge POS — 017: a bartender serves a bar item in ONE tap (no Accept / Start / Ready steps).
 -- Run in the Supabase SQL Editor after 016. Safe to run twice.
 -- One call does everything the old four steps did: claims the item for the bartender, marks it served,
 -- takes the stock out of the bar once, and settles the tab if nothing else is owed or unserved.

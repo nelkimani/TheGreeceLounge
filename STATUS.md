@@ -1,4 +1,4 @@
-# The Greece Lounge POS — Project status
+# The Glizz Lounge POS — Project status
 
 Last updated: 2 Nov 2026
 
