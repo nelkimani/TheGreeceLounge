@@ -1,4 +1,4 @@
--- The Greece Lounge POS — 022: captain-order workflow
+-- The Glizz Lounge POS — 022: captain-order workflow
 -- Run in the Supabase SQL Editor after 021. Safe to run twice. Nothing existing is dropped.
 --
 -- THE NEW FLOW

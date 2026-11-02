@@ -1,4 +1,4 @@
--- The Greece Lounge POS — 019: load the real catalogue and opening stock (from the 02/10/2026 delivery sheet)
+-- The Glizz Lounge POS — 019: load the real catalogue and opening stock (from the 02/10/2026 delivery sheet)
 --
 -- Run AFTER 018_go_live_reset.sql. Safe to run again: existing products are left untouched
 -- (so prices you set later are NOT overwritten) and opening stock is only recorded once per product.
