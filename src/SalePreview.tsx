@@ -6,7 +6,7 @@ import { kes } from './lib'
 const row = 'flex justify-between gap-2'
 const head = (s: Sale) => (
   <>
-    <div className="text-center text-base font-bold">THE GREECE LOUNGE</div>
+    <div className="text-center text-base font-bold">THE GLIZZ LOUNGE</div>
     <div className="text-center">CHUKA-NDAGANI</div>
     <div>{s.label} · {s.waiter}</div>
     <div>{new Date(s.created_at).toLocaleString('en-KE')}</div>
