@@ -22,6 +22,8 @@ from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.worksheet.page import PageMargins
+from openpyxl.worksheet.pagebreak import Break
 
 ROOT = Path(__file__).resolve().parent.parent
 PRODUCTS = ROOT / "tools" / "stock_sheet_products.json"
@@ -29,6 +31,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "public" / "Glizz-Loung
 
 SHEET = "Stock sheet"
 HOWTO = "How to use"
+ROWS_PER_PAGE = 55                 # drinks per printed page
 FIRST_ROW = 6                      # first product row (rows 1-5 are headers)
 HEADER_ROW = 5
 DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
@@ -65,7 +68,7 @@ def build() -> Workbook:
 
     # ───── title and week start ─────
     ws["A1"] = "THE GLIZZ LOUNGE — STOCK SHEET"
-    ws["A1"].font = f(size=16, bold=True, color="1F3864")
+    ws["A1"].font = f(size=13, bold=True, color="1F3864")   # fits inside the repeated A:B columns on every printed page
     ws["A2"] = "Week starting (Monday):"
     ws["A2"].font = f(bold=True)
     ws["D2"].fill = INPUT
@@ -206,10 +209,25 @@ def build() -> Workbook:
     ws.freeze_panes = ws.cell(row=FIRST_ROW, column=FIRST_DAY_COL)
     ws.auto_filter.ref = f"A{HEADER_ROW}:{L(total_cols)}{last}"
     ws.sheet_view.zoomScale = 90
-    ws.page_setup.orientation = "landscape"
+
+    # ───── printing: A4 portrait, one day per set of pages ─────
+    # Each day prints as 5 pages of 55 drinks, with Category/Product repeated beside that day's six columns.
+    # Pages 1-5 = Monday (also shows Price and Opening stock), 6-10 = Tuesday ... 31-35 = Sunday, 36-40 = week totals.
+    for r in range(FIRST_ROW, last + 1):
+        ws.row_dimensions[r].height = 16                      # room to write by hand on a printed copy
+    ws.page_setup.orientation = "portrait"
     ws.page_setup.paperSize = ws.PAPERSIZE_A4
+    ws.page_setup.scale = 75
+    ws.page_setup.pageOrder = "downThenOver"
+    ws.page_margins = PageMargins(left=0.4, right=0.4, top=0.5, bottom=0.6, header=0.25, footer=0.3)
     ws.print_title_rows = f"1:{HEADER_ROW}"
     ws.print_title_cols = "A:B"
+    for r in range(FIRST_ROW + ROWS_PER_PAGE - 1, last, ROWS_PER_PAGE):
+        ws.row_breaks.append(Break(id=r))                     # new page after every 55th drink
+    for d in range(7):
+        ws.col_breaks.append(Break(id=day_col(d, "Variance")))  # new set of pages after each day
+    ws.oddFooter.left.text = "THE GLIZZ LOUNGE - Stock sheet"
+    ws.oddFooter.right.text = "Page &P of &N"
 
     # ───── How to use ─────
     h = wb.create_sheet(HOWTO)
@@ -235,11 +253,25 @@ def build() -> Workbook:
         ("4.  Red variance = short. Amber variance = over. Empty = not counted yet. Tomorrow's Opening is today's Count automatically.", None),
         ("5.  New week: save a copy, copy Sunday's Count column and Paste Special > Values into 'Opening stock' (column D), then clear Issued, Sold and Count.", None),
         ("", None),
+        ("PRINTING", "head"),
+        ("1.  File > Print. The sheet prints on A4 portrait, one day at a time: each day is 5 pages of 55 drinks, with the drink names repeated on every page.", None),
+        ("2.  Pages 1-5 = Monday, 6-10 = Tuesday, 11-15 = Wednesday, 16-20 = Thursday, 21-25 = Friday, 26-30 = Saturday, 31-35 = Sunday, 36-40 = week totals.", None),
+        ("3.  To print one day, choose Print Pages and type its range, for example 6 to 10 for Tuesday. To print the whole week, print all 40 pages.", None),
+        ("4.  If you add or delete drinks, the page numbers move. Check Print Preview first.", None),
+        ("", None),
         ("EXAMPLE ONLY (this is not in your data)", "head"),
     ]
     for i, (text, kind) in enumerate(lines, start=1):
         c = h.cell(row=i, column=2, value=text)
         c.font = f(size=16, bold=True, color="1F3864") if kind == "title" else f(bold=(kind == "head"), color="1F3864" if kind == "head" else "000000")
+        h.merge_cells(start_row=i, start_column=2, end_row=i, end_column=9)
+        c.alignment = Alignment(wrap_text=True, vertical="top")
+        h.row_dimensions[i].height = 28 if len(text) > 125 else 16
+    h.page_setup.orientation = "portrait"
+    h.page_setup.paperSize = h.PAPERSIZE_A4
+    h.page_setup.fitToWidth = 1
+    h.page_setup.fitToHeight = 1
+    h.sheet_properties.pageSetUpPr.fitToPage = True
     ex = len(lines) + 1
     for col, text in enumerate(["Drink", "Opening", "Issued", "Sold", "Expected", "Count 8am", "Variance"], start=2):
         c = h.cell(row=ex, column=col, value=text)

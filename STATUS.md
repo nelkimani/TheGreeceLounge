@@ -26,6 +26,7 @@ Last updated: 2 Nov 2026
 - **Upload (app):** Stock sheet screen > Upload filled sheet. It is checked first, then Load records opening stock into the Main Bar. New drinks are added (Bar station); drinks already in the catalogue are left alone; a drink that already has opening stock is skipped, so a second upload cannot double the stock. Any bad row stops the whole upload and is listed.
 - New permission `stock.import` (manager and accountant). People already signed in must sign out and in again.
 - If 019 was run, drinks with the same name are matched, but different spellings (e.g. "KC Smooth 250ml" and "K C SMOOTH 250ML") become two products. Skip 019 if this sheet is the real catalogue.
+- **Printing:** A4 portrait, one day per set of pages (55 drinks a page, 5 pages a day, rows tall enough to write on). Pages 1-5 Monday, 6-10 Tuesday ... 31-35 Sunday, 36-40 week totals. Print one day with Print Pages; print the whole week by printing all 40. Page numbers move if drinks are added or deleted.
 - Sold has to be typed in from the POS sales report; it is not filled automatically yet. Only the first stock take is uploaded; the daily columns are used in Excel.
 
 ## Decisions made
