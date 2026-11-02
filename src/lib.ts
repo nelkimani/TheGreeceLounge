@@ -19,7 +19,7 @@ export const STATION_IDLE_MS = 300_000
 
 // ───────────── Order drafts, stored per staff member and per tab ─────────────
 export type CartLine = { product_id: string; name: string; price: number; qty: number; notes?: string }
-export type Draft = { key: string; lines: CartLine[]; state: 'editing' | 'not_sent' }
+export type Draft = { key: string; lines: CartLine[]; state: 'editing' | 'not_sent'; table?: string | null; customer?: string | null }
 
 const PREFIX = 'draft:'
 const dkey = (staff: string, tab: string) => `${PREFIX}${staff}:${tab}`

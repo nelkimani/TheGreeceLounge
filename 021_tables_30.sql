@@ -1,4 +1,4 @@
--- The Gliz Lounge POS — 021: the real floor plan, 30 tables (numbered 1 to 30)
+-- The Greece Lounge POS — 021: the real floor plan, 30 tables (numbered 1 to 30)
 -- Run once in the Supabase SQL Editor, after 018. Safe to run again.
 --
 -- Tables 1-12 already exist as "Demo table 1..12": they are renamed (so any tab already on them is untouched).

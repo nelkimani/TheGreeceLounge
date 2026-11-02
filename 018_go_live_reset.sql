@@ -1,4 +1,4 @@
--- The Gliz Lounge POS — 018: GO-LIVE RESET (run ONCE, before real trading starts)
+-- The Greece Lounge POS — 018: GO-LIVE RESET (run ONCE, before real trading starts)
 --
 -- WHAT IT DOES
 --   Erases every test transaction: tabs, orders, payments, receipts, stock movements and counts,

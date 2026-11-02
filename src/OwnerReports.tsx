@@ -3,7 +3,7 @@ import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
 
-type Tab = 'sales' | 'profit' | 'stock' | 'cash'
+type Tab = 'sales' | 'log' | 'profit' | 'stock' | 'cash'
 type Row = Record<string, string | number | null>
 type Col = { key: string; label: string; fmt?: 'kes' | 'num' | 'pct' | 'text'; wide?: boolean }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -86,7 +86,7 @@ export default function OwnerReports({ profile, onDone }: { profile: Profile; on
     if (!start || !end) return
     if (end < start) { setErr('The end date is before the start date.'); setLoaded(null); return }
     setLoading(true); setErr('')
-    const fn = { sales: 'report_sales', profit: 'report_profit', stock: 'report_stock', cash: 'report_cash' }[tab]
+    const fn = { sales: 'report_sales', log: 'report_sales_log', profit: 'report_profit', stock: 'report_stock', cash: 'report_cash' }[tab]
     const { data: d, error } = await supabase.rpc(fn, { p_start: start, p_end: end })
     if (id !== req.current) return                         // a newer request replaced this one
     setLoading(false)
@@ -107,8 +107,8 @@ export default function OwnerReports({ profile, onDone }: { profile: Profile; on
     <div className="mx-auto max-w-6xl p-4">
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <h2 className="mr-3 text-3xl font-bold">Owner reports</h2>
-        {tabBtn('sales', 'Sales', seeSales)}{tabBtn('profit', 'Profit', seeProfit)}
-        {tabBtn('stock', 'Stock value & losses', seeProfit)}{tabBtn('cash', 'Cash, M-Pesa & credit', seeSales)}
+        {tabBtn('sales', 'Sales', seeSales)}{tabBtn('log', 'Sales log', seeSales)}{tabBtn('profit', 'Profit', seeProfit)}
+        {tabBtn('stock', 'Stock value & losses', seeProfit)}
         <HomeBtn onClick={onDone} className="ml-auto !h-12" />
       </div>
       <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl bg-slate-800 p-3">
@@ -122,6 +122,7 @@ export default function OwnerReports({ profile, onDone }: { profile: Profile; on
       {err && <div className="mb-3 rounded-lg bg-red-700 p-3 text-lg font-semibold">{err}</div>}
       {!data && !err && <div className="text-xl text-slate-400">Loading…</div>}
       {data && tab === 'sales' && <Sales d={data} />}
+      {data && tab === 'log' && <SalesLog d={data} />}
       {data && tab === 'profit' && <Profit d={data} />}
       {data && tab === 'stock' && <Stock d={data} />}
       {data && tab === 'cash' && <Cash d={data} />}
@@ -162,6 +163,27 @@ function Sales({ d }: { d: Data }) {
       <Table title="By waiter" file="sales-by-waiter" rows={d.by_waiter}
         cols={[{ key: 'waiter', label: 'Waiter' }, { key: 'staff_no', label: 'ID' }, { key: 'tabs', label: 'Bills', fmt: 'num' }, { key: 'items', label: 'Items', fmt: 'num' }, { key: 'gross', label: 'Sales', fmt: 'kes' }, { key: 'adjustments', label: 'Adjustments on their bills', fmt: 'kes' }]} />
       <div className="text-base text-slate-400">A sale counts on the trading day the item was served. Waiter figures are for the bills each waiter owns. Adjustments count on the day they were approved.</div>
+    </div>
+  )
+}
+
+// ───────────── 1b. Sales log: every line, who sold it and when ─────────────
+const STATION_NAME: Record<string, string> = { bar: 'Bar', choma: 'Choma zone', restaurant: 'Restaurant' }
+function SalesLog({ d }: { d: Data }) {
+  const rows: Row[] = d.rows.map((r: Row) => ({ ...r, when: new Date(String(r.time)).toLocaleString('en-KE'), station: STATION_NAME[String(r.station)] ?? r.station ?? '' }))
+  const voids: Row[] = d.voids.map((r: Row) => ({ ...r, when: new Date(String(r.time)).toLocaleString('en-KE'), station: STATION_NAME[String(r.station)] ?? r.station }))
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
+        <Card label="Sales in the log" value={kes(d.total)} sub={`${rows.length} lines`} />
+        <Card label="Voided orders" value={String(voids.length)} tone={voids.length > 0 ? 'warn' : undefined} />
+      </div>
+      <Table title="Every sale: who sold what, and when" file="sales-log" rows={rows} empty="No sales in this period."
+        cols={[{ key: 'when', label: 'Time' }, { key: 'order_no', label: 'Order', fmt: 'num' }, { key: 'slip_no', label: 'Slip', fmt: 'num' }, { key: 'station', label: 'Station' }, { key: 'waiter', label: 'Waiter' }, { key: 'place', label: 'Table / name' }, { key: 'product', label: 'Product' }, { key: 'qty', label: 'Qty', fmt: 'num' }, { key: 'unit_price', label: 'Price', fmt: 'kes' }, { key: 'total', label: 'Total', fmt: 'kes' }]}
+        total={rows.length ? { when: 'Total', total: d.total } : undefined} />
+      <Table title="Voided orders" file="sales-voids" rows={voids} empty="No voids in this period."
+        cols={[{ key: 'when', label: 'Time' }, { key: 'slip_no', label: 'Slip', fmt: 'num' }, { key: 'station', label: 'Station' }, { key: 'waiter', label: 'Waiter' }, { key: 'voided_by', label: 'Approved by' }, { key: 'reason', label: 'Reason' }, { key: 'total', label: 'Value', fmt: 'kes' }]} />
+      <div className="text-base text-slate-400">The sale time is when the waiter sent the order. The log covers up to 32 days at a time. Voided orders are not counted as sales.</div>
     </div>
   )
 }

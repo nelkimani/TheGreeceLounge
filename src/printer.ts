@@ -127,6 +127,17 @@ export async function printSlip(data: SlipData): Promise<string> {
   return ''
 }
 
+/** Send raw bytes to the USB printer. Returns false (and prints nothing) when no printer is connected or it fails. */
+export async function printBytes(bytes: Uint8Array): Promise<boolean> {
+  if (state.status !== 'connected') return false
+  try { await send(bytes); return true } catch {
+    dev = null
+    set({ status: 'disconnected', problem: 'The printer stopped responding. Check the cable and power, then connect it again.' })
+    return false
+  }
+}
+export const printerConnected = () => state.status === 'connected'
+
 const api = usb()
 if (api) {
   api.addEventListener('disconnect', () => { dev = null; set({ status: 'disconnected' }) })

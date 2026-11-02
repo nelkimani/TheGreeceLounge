@@ -1,7 +1,7 @@
 import { Profile, can } from './supabase'
 import type { IconName } from './icons'
 
-export type View = 'home' | 'waiter' | 'queue' | 'staff' | 'stock' | 'approvals' | 'handover' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products'
+export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products'
 
 // The office sidebar groups screens by job. Terminals ignore groups and use `kind` for the tile home.
 export type Group = 'sales' | 'stock' | 'money' | 'reports' | 'admin'
@@ -16,34 +16,28 @@ export const GROUPS: { id: Group; label: string }[] = [
 export type NavItem = {
   id: string              // unique key; also what "current screen" is compared against
   view: View
-  stations?: string[]     // only for queue screens
   icon: IconName
   label: string
   group: Group
   kind: 'work' | 'manage' // terminal tile home: amber "Work" tiles vs grey "Manage" tiles
 }
 
-export const navId = (view: View, stations: string[] = []) => (view === 'queue' ? 'queue:' + stations.join(',') : view)
+export const navId = (view: View) => view
 
 // One list drives both the terminals' tile home and the office sidebar, so the two can never disagree
 // about who may open what. Array order is the order tiles / sidebar items appear in.
+// Stations (bar, choma zone, restaurant) no longer have a queue screen: they serve from the printed captain order.
 export function navItems(profile: Profile): NavItem[] {
   const stationPerms = ['kitchen', 'choma', 'bar'].filter(s => can(profile, 'station.' + s))
-  const item = (view: View, icon: IconName, label: string, group: Group, kind: NavItem['kind'], show: boolean, stations?: string[]) =>
-    ({ show, it: { id: navId(view, stations), view, stations, icon, label, group, kind } as NavItem })
+  const item = (view: View, icon: IconName, label: string, group: Group, kind: NavItem['kind'], show: boolean) =>
+    ({ show, it: { id: navId(view), view, icon, label, group, kind } as NavItem })
 
-  // Order here is the order of the terminals' tile home (unchanged from before the office shell);
-  // the office sidebar shows the same items, split into groups.
   return [
     item('waiter', 'orders', 'Take orders', 'sales', 'work', can(profile, 'tab.open')),
-    item('queue', 'kitchen', 'Kitchen queue', 'sales', 'work', stationPerms.includes('kitchen'), ['kitchen']),
-    item('queue', 'choma', 'Choma queue', 'sales', 'work', stationPerms.includes('choma'), ['choma']),
-    item('queue', 'bar', 'Bar queue', 'sales', 'work', stationPerms.includes('bar'), ['bar']),
-    item('queue', 'queues', 'All queues', 'sales', 'work', stationPerms.length > 1, stationPerms),
+    item('myorders', 'orders', 'My orders', 'sales', 'work', can(profile, 'tab.open')),
 
     item('stock', 'stock', 'Bar stock', 'stock', 'manage', stationPerms.includes('bar') || can(profile, 'stock.view_all')),
     item('approvals', 'approvals', 'Approvals', 'money', 'manage', can(profile, 'approval.grant')),
-    item('handover', 'cash', 'Hand in cash', 'money', 'manage', can(profile, 'payment.record') && !can(profile, 'recon.view_all')),
     item('recon', 'recon', 'Reconciliation', 'money', 'manage', can(profile, 'recon.view_all')),
     item('purchasing', 'purchasing', 'Purchasing', 'stock', 'manage', can(profile, 'goods.receive') || can(profile, 'supplier.manage')),
     item('expenses', 'expenses', 'Cash expenses', 'money', 'manage', can(profile, 'expense.record')),
