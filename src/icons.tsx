@@ -24,6 +24,7 @@ const P: Record<string, string> = {
   panel: 'M3 5h18v14H3zM9 5v14',
   products: 'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',
   keyboard: 'M2 6h20v12H2zM6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10',
+  sheet: 'M6 3h8l5 5v13H6zM14 3v5h5M9 13h7M9 17h7',
 }
 export type IconName = keyof typeof P
 export const Icon = ({ name, className = 'h-8 w-8' }: { name: IconName; className?: string }) => (
