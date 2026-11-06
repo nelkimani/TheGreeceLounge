@@ -79,16 +79,16 @@ function sharedStrings(xml: string | null): string[] {
   return out
 }
 
-async function findSheetXml(buf: Uint8Array, dir: Map<string, Entry>): Promise<string> {
+async function findSheetXml(buf: Uint8Array, dir: Map<string, Entry>, wanted: string | null): Promise<string> {
   const wb = await readText(buf, dir, 'xl/workbook.xml')
   const rels = await readText(buf, dir, 'xl/_rels/workbook.xml.rels')
   if (!wb || !rels) throw new Error('This is not an Excel (.xlsx) file.')
   let rid = ''
   for (const m of wb.matchAll(/<sheet\b([^>]*?)\/?>/g)) {
     const a = attrs(m[1])
-    if (a.name === SHEET_NAME) { rid = Object.entries(a).find(([k]) => /(^|:)id$/.test(k) && k !== 'sheetId')?.[1] ?? '' }
+    if (!rid && (wanted === null || a.name === wanted)) { rid = Object.entries(a).find(([k]) => /(^|:)id$/.test(k) && k !== 'sheetId')?.[1] ?? '' }
   }
-  if (!rid) throw new Error(`The tab called "${SHEET_NAME}" was not found. Please use the sheet downloaded from the app and do not rename its tabs.`)
+  if (!rid) throw new Error(wanted === null ? 'The Excel file has no sheet in it.' : `The tab called "${wanted}" was not found. Please use the sheet downloaded from the app and do not rename its tabs.`)
   let target = ''
   for (const m of rels.matchAll(/<Relationship\b([^>]*?)\/?>/g)) {
     const a = attrs(m[1])
@@ -101,15 +101,15 @@ async function findSheetXml(buf: Uint8Array, dir: Map<string, Entry>): Promise<s
   return xml
 }
 
-type Cell = string | number | boolean | null
+export type Cell = string | number | boolean | null
 
-// Returns rows -> column letter -> value, for columns A to D only.
-function readCells(sheetXml: string, strings: string[]): Map<number, Record<string, Cell>> {
+// Returns rows -> column letter -> value, for the given single-letter columns only (default A to D).
+function readCells(sheetXml: string, strings: string[], cols = 'ABCD'): Map<number, Record<string, Cell>> {
   const rows = new Map<number, Record<string, Cell>>()
   for (const m of sheetXml.matchAll(/<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
     const a = attrs(m[1])
     const ref = /^([A-Z]+)(\d+)$/.exec(a.r ?? '')
-    if (!ref || !'ABCD'.includes(ref[1]) || ref[1].length !== 1) continue
+    if (!ref || ref[1].length !== 1 || !cols.includes(ref[1])) continue
     const inner = m[2] ?? ''
     const v = /<v\b[^>]*?>([\s\S]*?)<\/v>/.exec(inner)?.[1]
     let val: Cell = null
@@ -141,11 +141,18 @@ function toNumber(v: Cell, what: string, where: string, problems: string[]): num
   return Math.round(n * 1000) / 1000
 }
 
-export async function readStockSheet(file: ArrayBuffer): Promise<ReadResult> {
+// Cell values of one sheet (the first sheet when sheetName is null), columns given as letters, e.g. 'ABCDEFGH'.
+export async function readSheetCells(file: ArrayBuffer, sheetName: string | null, cols: string): Promise<Map<number, Record<string, Cell>>> {
   const buf = new Uint8Array(file)
   const dir = readDirectory(buf)
   const strings = sharedStrings(await readText(buf, dir, 'xl/sharedStrings.xml'))
-  const cells = readCells(await findSheetXml(buf, dir), strings)
+  return readCells(await findSheetXml(buf, dir, sheetName), strings, cols)
+}
+
+export const cleanText = (v: Cell) => (v == null ? '' : String(v)).replace(/\s+/g, ' ').trim()
+
+export async function readStockSheet(file: ArrayBuffer): Promise<ReadResult> {
+  const cells = await readSheetCells(file, SHEET_NAME, 'ABCD')
 
   const problems: string[] = []
   const lines = [...cells.keys()].sort((a, b) => a - b)
