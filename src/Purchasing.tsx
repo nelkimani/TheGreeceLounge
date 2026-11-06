@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
+import DeliveryUpload from './DeliveryUpload'
 
 type Supplier = { supplier_id: string; name: string; kind: string; is_big: boolean; phone: string | null; invoiced: number; paid: number; owed: number }
 type Product = { id: string; name: string; base_unit: string }
@@ -11,19 +12,22 @@ const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg
 const LOCS: [string, string][] = [['store', 'Store'], ['kitchen', 'Kitchen'], ['choma', 'Choma'], ['main_bar', 'Bar']]
 
 export default function Purchasing({ profile, onDone }: { profile: Profile; onDone: () => void }) {
-  const [tab, setTab] = useState<'receive' | 'suppliers' | 'history'>('receive')
+  const [tab, setTab] = useState<'receive' | 'upload' | 'suppliers' | 'history'>('receive')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [receipts, setReceipts] = useState<Receipt[]>([])
+  const [categories, setCategories] = useState<string[]>([])
   const [msg, setMsg] = useState(''); const [bad, setBad] = useState(false)
   const flash = (m: string, b = false) => { setMsg(m); setBad(b) }
 
   const load = useCallback(async () => {
-    const [s, p, r] = await Promise.all([
+    const [s, p, r, c] = await Promise.all([
       supabase.from('supplier_balances').select('*').order('name'),
-      supabase.from('products').select('id, name, base_unit').order('name'),
-      supabase.from('receipts_v').select('*').order('receipt_no', { ascending: false }).limit(40)])
+      supabase.from('products').select('id, name, base_unit').eq('active', true).order('name'),
+      supabase.from('receipts_v').select('*').order('receipt_no', { ascending: false }).limit(40),
+      supabase.from('categories').select('name').order('name')])
     setSuppliers((s.data ?? []) as Supplier[]); setProducts((p.data ?? []) as Product[]); setReceipts((r.data ?? []) as Receipt[])
+    setCategories(((c.data ?? []) as { name: string }[]).map(x => x.name))
   }, [])
   useEffect(() => { load() }, [load])
 
@@ -33,11 +37,12 @@ export default function Purchasing({ profile, onDone }: { profile: Profile; onDo
     <div className="mx-auto max-w-6xl p-4">
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h2 className="mr-4 text-3xl font-bold">Purchasing</h2>
-        {t('receive', 'Receive goods')}{t('suppliers', 'Suppliers')}{t('history', 'Deliveries')}
+        {t('receive', 'Receive goods')}{t('upload', 'Upload delivery')}{t('suppliers', 'Suppliers')}{t('history', 'Deliveries')}
         <HomeBtn onClick={onDone} className="ml-auto !h-12" />
       </div>
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       {tab === 'receive' && <Receive suppliers={suppliers} products={products} flash={flash} reload={load} />}
+      {tab === 'upload' && <DeliveryUpload suppliers={suppliers} products={products} categories={categories} flash={flash} reload={load} />}
       {tab === 'suppliers' && <Suppliers suppliers={suppliers} profile={profile} flash={flash} reload={load} />}
       {tab === 'history' && (
         <div className="space-y-2">
