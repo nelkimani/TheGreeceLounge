@@ -5,7 +5,7 @@ import { confirmDialog } from './feedback'
 import { kes, uid } from './lib'
 import { readDeliverySheet, DeliveryRow } from './deliverySheetReader'
 import { suggest } from './deliveryMatch'
-import { categoryName, isLiquorCategory, unitFor } from './stockSheetRules'
+import { categoryName, guessCategory, isLiquorCategory, unitFor } from './stockSheetRules'
 
 // Purchasing > Upload delivery. The accountant picks the supplier, types the delivery note number and uploads the
 // Excel delivery sheet (item, qty, price paid, selling price). Each line is matched to a drink in the catalogue
@@ -52,7 +52,7 @@ export default function DeliveryUpload({ suppliers, products, categories, flash,
       setProblems(read.problems)
       setLines(read.rows.map(r => {
         const m = suggest(r.name, products)
-        return { ...r, choice: m.id ?? NEW, newName: r.name, category: '', sell: r.sell == null ? '' : String(r.sell), level: m.level, why: m.why }
+        return { ...r, choice: m.id ?? NEW, newName: r.name, category: m.id ? '' : guessCategory(r.name, categories), sell: r.sell == null ? '' : String(r.sell), level: m.level, why: m.why }
       }))
     } catch (e) { setErr((e as Error).message || 'This file could not be read.') }
     setBusy(false)
