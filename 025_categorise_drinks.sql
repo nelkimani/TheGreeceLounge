@@ -356,7 +356,16 @@ insert into _cat_map(k, cat) values
   ('viceroybrandy375ml', 'Brandy'),
   ('viceroybrandy750ml', 'Brandy'),
   ('williamlawson1ltr', 'Whiskey'),
-  ('williamlawson750ml', 'Whiskey');
+  ('williamlawson750ml', 'Whiskey'),
+  ('kane250ml', 'Vodka'),
+  ('kane750ml', 'Vodka'),
+  ('liberty750ml', 'Whiskey'),
+  ('mcdowells750ml', 'Whiskey'),
+  ('orijin250ml', 'Liquor'),
+  ('orijin750ml', 'Liquor'),
+  ('tripleace250ml', 'Vodka'),
+  ('tripleace750ml', 'Vodka'),
+  ('tusker500ml', 'Beers');
 
 insert into categories(name)
 select distinct c.cat from _cat_map c
