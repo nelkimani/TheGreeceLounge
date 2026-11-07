@@ -42,7 +42,8 @@ const bluetooth = (): BtApi | undefined => (navigator as unknown as { bluetooth?
 const BT_SERVICES = [
   '000018f0-0000-1000-8000-00805f9b34fb', '0000ff00-0000-1000-8000-00805f9b34fb', '0000ffe0-0000-1000-8000-00805f9b34fb',
   '49535343-fe7d-4ae5-8fa9-9fafd205e455', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '0000fee7-0000-1000-8000-00805f9b34fb',
-  '00001101-0000-1000-8000-00805f9b34fb',
+  '00001101-0000-1000-8000-00805f9b34fb', '0000fff0-0000-1000-8000-00805f9b34fb', '0000ae30-0000-1000-8000-00805f9b34fb',
+  '0000ffe5-0000-1000-8000-00805f9b34fb', '0000fe59-0000-1000-8000-00805f9b34fb', '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
 ]
 
 const isAndroid = /Android/i.test(navigator.userAgent)
@@ -124,10 +125,20 @@ export async function restorePrinter() {
 }
 
 // ───────────── Bluetooth (BLE) ─────────────
+const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> =>
+  new Promise((ok, no) => { const t = setTimeout(() => no(new Error(what)), ms); p.then(v => { clearTimeout(t); ok(v) }, e => { clearTimeout(t); no(e) }) })
+
 async function btOpen(d: BtDevice) {
-  const server = await d.gatt!.connect()
+  const server = await within(d.gatt!.connect(), 12000,
+    'The printer did not answer over Bluetooth within 12 seconds. Switch it off and on, bring it close, and try again. If it keeps failing, tap "Print with RawBT app" instead.')
   let found: BtChar | null = null
-  for (const svc of await server.getPrimaryServices()) {
+  let services: BtService[] = []
+  try { services = await within(server.getPrimaryServices(), 12000, 'The printer connected but did not list its services. Try again, or use "Print with RawBT app".') }
+  catch (e) {
+    if ((e as { name?: string })?.name === 'NotFoundError') throw new Error('This printer does not offer Bluetooth printing to the browser (it is probably a classic-Bluetooth model). Tap "Print with RawBT app" instead.')
+    throw e
+  }
+  for (const svc of services) {
     for (const c of await svc.getCharacteristics()) {
       if (c.properties.writeWithoutResponse || c.properties.write) { found = found ?? c; if (c.properties.writeWithoutResponse) found = c }
     }
