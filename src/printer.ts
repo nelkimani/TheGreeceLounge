@@ -129,15 +129,26 @@ const within = <T,>(p: Promise<T>, ms: number, what: string): Promise<T> =>
   new Promise((ok, no) => { const t = setTimeout(() => no(new Error(what)), ms); p.then(v => { clearTimeout(t); ok(v) }, e => { clearTimeout(t); no(e) }) })
 
 async function btOpen(d: BtDevice) {
-  const server = await within(d.gatt!.connect(), 12000,
-    'The printer did not answer over Bluetooth within 12 seconds. Switch it off and on, bring it close, and try again. If it keeps failing, tap "Print with RawBT app" instead.')
-  let found: BtChar | null = null
+  // Cheap printers often drop the link the moment it opens, or are slow to answer: wait a moment and retry a few times.
   let services: BtService[] = []
-  try { services = await within(server.getPrimaryServices(), 12000, 'The printer connected but did not list its services. Try again, or use "Print with RawBT app".') }
-  catch (e) {
-    if ((e as { name?: string })?.name === 'NotFoundError') throw new Error('This printer does not offer Bluetooth printing to the browser (it is probably a classic-Bluetooth model). Tap "Print with RawBT app" instead.')
-    throw e
+  let last: unknown = null
+  for (let attempt = 0; attempt < 4 && services.length === 0; attempt++) {
+    try {
+      const server = await within(d.gatt!.connect(), 12000,
+        'The printer did not answer over Bluetooth within 12 seconds. Switch it off and on, bring it close, and try again. If it keeps failing, tap "Print with RawBT app" instead.')
+      await new Promise(r => setTimeout(r, 700 + attempt * 400))
+      services = await within(server.getPrimaryServices(), 12000, 'The printer connected but did not list its services. Try again, or use "Print with RawBT app".')
+    } catch (e) {
+      last = e
+      if ((e as { name?: string })?.name === 'NotFoundError') throw new Error('This printer does not offer Bluetooth printing to the browser (it is probably a classic-Bluetooth model). Tap "Print with RawBT app" instead.')
+      await new Promise(r => setTimeout(r, 800))
+    }
   }
+  if (services.length === 0) {
+    throw new Error('The printer keeps dropping the Bluetooth link. Close any other app connected to it (RawBT, printer apps), remove it from Android Bluetooth settings, switch it off and on, then try again. Otherwise tap "Print with RawBT app". ('
+      + ((last as Error)?.message ?? 'no detail') + ')')
+  }
+  let found: BtChar | null = null
   for (const svc of services) {
     for (const c of await svc.getCharacteristics()) {
       if (c.properties.writeWithoutResponse || c.properties.write) { found = found ?? c; if (c.properties.writeWithoutResponse) found = c }
