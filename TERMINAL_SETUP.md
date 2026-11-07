@@ -17,7 +17,7 @@ Open the site ONCE on each device with its code on the end of the address. The b
 
 ## Receipt printer: handheld Bluetooth (58mm, P58E) from a phone
 
-For a waiter or manager on an Android phone with a 58mm Bluetooth printer. Receipts and captain orders are laid out for 58mm paper (32 characters wide).
+For now this is available only when signed in with a **manager** account, on an Android phone with a 58mm Bluetooth printer. Receipts and captain orders are laid out for 58mm paper (32 characters wide).
 
 **Option A: connect from Chrome (try this first).** Open the site in Chrome on the phone, send or reprint an order, and on the print screen tap **Connect Bluetooth printer**. Pick the printer (P58E or similar) in the list. The status line turns green. Chrome forgets a Bluetooth printer when the page is reloaded or the app is reopened, so tap Connect again each time. Turn Bluetooth and Location on, and switch the printer on and bring it close.
 

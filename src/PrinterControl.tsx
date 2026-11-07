@@ -11,7 +11,7 @@ export default function PrinterControl() {
   const [all, setAll] = useState(false)
 
   if (p.status === 'unsupported') {
-    return <div className="text-sm text-slate-400">Direct printing needs Chrome or Edge. Print uses the normal print window here.</div>
+    return <div className="text-sm text-slate-400">Direct printing is not set up on this device. Print uses the normal print window here.</div>
   }
   const how = p.mode === 'bluetooth' ? 'Bluetooth' : p.mode === 'rawbt' ? 'RawBT app' : 'USB'
   return (

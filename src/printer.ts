@@ -58,8 +58,10 @@ export type PrinterState = {
   can: { usb: boolean; bluetooth: boolean; rawbt: boolean }      // what this device can use
 }
 
-const can = { usb: !!usb(), bluetooth: !!bluetooth(), rawbt: isAndroid }
-let state: PrinterState = { status: can.usb || can.bluetooth || can.rawbt ? 'disconnected' : 'unsupported', can }
+// Handheld (Bluetooth / RawBT) printing is for manager accounts only for now: allowHandheld() is called when someone signs in.
+let allowed = false
+const can = { usb: !!usb(), bluetooth: false, rawbt: false }
+let state: PrinterState = { status: can.usb ? 'disconnected' : 'unsupported', can }
 const listeners = new Set<() => void>()
 const set = (s: Omit<PrinterState, 'can'>) => { state = { ...s, can }; listeners.forEach(l => l()) }
 
@@ -110,7 +112,7 @@ function explain(e: unknown): string {
 /** Reconnect to a printer this browser was already allowed to use. Safe to call any time. */
 export async function restorePrinter() {
   const api = usb()
-  if (savedMode() === 'rawbt' && !dev && !btChar) { enableRawbt(false); return }
+  if (allowed && savedMode() === 'rawbt' && !dev && !btChar && !rawbt) { enableRawbt(false); return }
   if (!api || state.status === 'connecting') return
   let last: unknown = null
   try {
@@ -172,13 +174,24 @@ export function enableRawbt(remember = true) {
   set({ status: 'connected', mode: 'rawbt', name: 'RawBT app' })
 }
 
+/** Turn Bluetooth / RawBT printing on or off for the signed-in account (manager only for now). */
+export function allowHandheld(on: boolean) {
+  allowed = on
+  can.bluetooth = on && !!bluetooth()
+  can.rawbt = on && isAndroid
+  if (!on && (btChar || rawbt)) { disconnectPrinter(); return }
+  if (on && savedMode() === 'rawbt' && !rawbt) { enableRawbt(false); return }
+  const { can: _c, ...rest } = state; void _c
+  set({ ...rest, status: rest.status === 'unsupported' && (can.bluetooth || can.rawbt) ? 'disconnected' : rest.status === 'disconnected' && !can.usb && !can.bluetooth && !can.rawbt ? 'unsupported' : rest.status })
+}
+
 /** Forget the current printer so another can be chosen. */
 export function disconnectPrinter() {
   try { btDev?.gatt?.connected && (btDev as unknown as { gatt: { disconnect(): void } }).gatt.disconnect() } catch { /* already gone */ }
   btDev = null; btChar = null; dev = null; rawbt = false
   try { localStorage.removeItem(MODE_KEY) } catch { /* ignore */ }
   setPaperCols(COLS)
-  set({ status: 'disconnected' })
+  set({ status: can.usb || can.bluetooth || can.rawbt ? 'disconnected' : 'unsupported' })
 }
 
 /** Ask the person to pick the printer. Must be called from a tap (browser rule). */
