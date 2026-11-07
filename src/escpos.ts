@@ -1,9 +1,13 @@
 // Turns a receipt into raw ESC/POS bytes for an 80mm thermal printer (Xprinter XP-80T and the
-// many Epson-compatible models). 80mm paper, Font A = 48 characters per line.
+// many Epson-compatible models). 80mm paper, Font A = 48 characters per line; 58mm Bluetooth printers use 32.
 // Pure functions: no browser APIs, so the output can be checked without a printer.
 import type { BillLine } from './Receipt'
 
-export const COLS = 48
+export const COLS = 48                 // 80mm paper (USB printers)
+export const COLS_58 = 32              // 58mm paper (handheld Bluetooth printers such as the P58E)
+let paperCols = COLS
+export const setPaperCols = (n: number) => { paperCols = n }
+export const getPaperCols = () => paperCols
 
 export type SlipRow = { left: string; right?: string; bold?: boolean }
 export type SlipData = {
@@ -45,7 +49,7 @@ function wrap(text: string, width: number): string[] {
 }
 
 // "left ........ right", with the left side wrapped so the right side always fits on the last line.
-export function twoColumn(left: string, right = '', cols = COLS): string[] {
+export function twoColumn(left: string, right = '', cols = paperCols): string[] {
   left = clean(left); right = clean(right)
   if (!right) return wrap(left, cols)
   const room = cols - right.length - 1
@@ -63,7 +67,7 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
   const align = (n: 0 | 1 | 2) => raw(ESC, 0x61, n)          // 0 left, 1 centre, 2 right
   const bold = (on: boolean) => raw(ESC, 0x45, on ? 1 : 0)
   const size = (n: number) => raw(GS, 0x21, n)               // 0x00 normal, 0x11 double width+height
-  const rule = (ch = '-') => line(ch.repeat(COLS))
+  const rule = (ch = '-') => line(ch.repeat(paperCols))
 
   raw(ESC, 0x40)                                             // reset the printer
   align(1); bold(true); size(0x11); line('THE GLIZZ LOUNGE'); size(0x00); bold(false)
@@ -83,7 +87,7 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
   rule()
 
   bold(true); size(0x01)                                     // double height only: still fits 48 columns
-  for (const t of twoColumn('TOTAL', `KES ${money(d.total)}`, COLS)) line(t)
+  for (const t of twoColumn('TOTAL', `KES ${money(d.total)}`)) line(t)
   size(0x00); bold(false)
 
   for (const r of d.rows ?? []) {
@@ -120,7 +124,7 @@ export function encodeCaptain(d: CaptainData, at: Date = new Date()): Uint8Array
   const align = (n: 0 | 1 | 2) => raw(ESC, 0x61, n)
   const bold = (on: boolean) => raw(ESC, 0x45, on ? 1 : 0)
   const size = (n: number) => raw(GS, 0x21, n)
-  const rule = (ch = '-') => line(ch.repeat(COLS))
+  const rule = (ch = '-') => line(ch.repeat(paperCols))
 
   raw(ESC, 0x40)
   align(1); bold(true); size(0x11); line(STATION_TITLE[d.station]); size(0x00)

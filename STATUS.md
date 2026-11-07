@@ -9,6 +9,7 @@ Last updated: 2 Nov 2026
 - **6 Nov 2026: Upload delivery (migration 024 + app).** Purchasing > **Upload delivery**: pick supplier, type the delivery note number, upload the Excel delivery sheet (Item Name, Qty, Price paid, handwritten selling price). Lines are matched to drinks (changeable, or add as new); one press records stock with cost, adds new drinks and updates selling prices. 024 was tested on a throwaway Postgres 16.
 - **6 Nov 2026: categories (migration 025).** Every drink is put in its category from the upstairs counter stock list (Beers, Brandy, Cognac, Gin, Liquor, Rum, Whiskey, Wines …); drinks from migration 019 that sat in Spirits etc. are moved. New drinks on a delivery get a suggested category.
 - **7 Nov 2026: manager side on phones.** Below 768px wide the sidebar becomes a slide-in menu (hamburger button; theme and Sign out live in it), the top bar is compacted, wide tables scroll sideways, and fixed-width boxes shrink to the screen. Computers and terminals are unchanged.
+- **7 Nov 2026: Bluetooth printing (58mm P58E).** Print screen: Connect Bluetooth printer (Chrome on Android) or Print with RawBT app. Slips use 32 columns on 58mm. Not tested on a real printer yet. See TERMINAL_SETUP.md.
 - Next: run 024 and 025, then 022 and 023 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
 
 ## How a sale works now
