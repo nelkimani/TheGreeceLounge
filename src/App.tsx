@@ -22,6 +22,7 @@ import { useIdle } from './useIdle'
 import { FeedbackHost, confirmDialog } from './feedback'
 import ScreenKeyboard from './ScreenKeyboard'
 import { Icon } from './icons'
+import { allowHandheld } from './printer'
 
 const isTerminal = TERMINAL_CODE !== 'OFFICE'
 
@@ -52,6 +53,9 @@ export default function App() {
     setUnsent(listNotSent().length)
     return () => clearInterval(t)
   }, [])
+
+  // Bluetooth / RawBT printing: manager accounts only for now.
+  useEffect(() => { allowHandheld(!!profile?.roles.includes('manager')) }, [profile])
 
   const lock = () => supabase.auth.signOut()
   // Terminals lock themselves: quickly while ordering, slowly on the kitchen/bar queues.

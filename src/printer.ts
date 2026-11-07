@@ -1,10 +1,14 @@
-// Direct USB printing from the browser (WebUSB) to a thermal receipt printer such as the Xprinter XP-80T.
-// Needs HTTPS (the site already is) and Chrome or Edge. Each terminal pairs its own printer once; the
-// browser remembers the permission. If the printer is not connected, or sending fails, we fall back to
+// Direct printing from the browser to a thermal receipt printer, three ways:
+//   USB        (WebUSB)        80mm Xprinter XP-80T on the terminals. The browser remembers the printer.
+//   Bluetooth  (Web Bluetooth) 58mm handheld printers such as the P58E, from Chrome on Android. Pair once per
+//                              visit: Chrome forgets Bluetooth printers when the page is reloaded.
+//   RawBT app  (Android)       for printers that only do classic Bluetooth, which Chrome cannot talk to:
+//                              the slip is handed to the free RawBT app, which prints it.
+// Needs HTTPS (the site already is). If no printer is connected, or sending fails, we fall back to
 // the normal browser print window so a receipt can always be produced.
 // Printing only sends bytes to the printer. It never touches the server or records a payment.
 import { useSyncExternalStore } from 'react'
-import { encodeSlip, SlipData } from './escpos'
+import { COLS, COLS_58, encodeSlip, setPaperCols, SlipData } from './escpos'
 
 // Minimal WebUSB types (the TypeScript DOM library does not include them).
 type UsbEndpoint = { endpointNumber: number; direction: 'in' | 'out'; type: string }
@@ -25,18 +29,47 @@ type UsbApi = {
 }
 const usb = (): UsbApi | undefined => (navigator as unknown as { usb?: UsbApi }).usb
 
+// Minimal Web Bluetooth types.
+type BtChar = { properties: { write: boolean; writeWithoutResponse: boolean }
+  writeValueWithoutResponse(v: BufferSource): Promise<void>; writeValue(v: BufferSource): Promise<void> }
+type BtService = { getCharacteristics(): Promise<BtChar[]> }
+type BtServer = { connected: boolean; getPrimaryServices(): Promise<BtService[]>; disconnect(): void }
+type BtDevice = { name?: string; gatt?: { connected: boolean; connect(): Promise<BtServer> }; addEventListener(t: 'gattserverdisconnected', f: () => void): void }
+type BtApi = { requestDevice(o: { acceptAllDevices: true; optionalServices: string[] }): Promise<BtDevice> }
+const bluetooth = (): BtApi | undefined => (navigator as unknown as { bluetooth?: BtApi }).bluetooth
+
+// Services that cheap 58mm Bluetooth LE receipt printers use for printing (the P58E family and most clones).
+const BT_SERVICES = [
+  '000018f0-0000-1000-8000-00805f9b34fb', '0000ff00-0000-1000-8000-00805f9b34fb', '0000ffe0-0000-1000-8000-00805f9b34fb',
+  '49535343-fe7d-4ae5-8fa9-9fafd205e455', 'e7810a71-73ae-499d-8c15-faa9aef0c3f2', '0000fee7-0000-1000-8000-00805f9b34fb',
+  '00001101-0000-1000-8000-00805f9b34fb',
+]
+
+const isAndroid = /Android/i.test(navigator.userAgent)
+const MODE_KEY = 'pos-printer-mode'
+const savedMode = (): Mode | null => { try { const m = localStorage.getItem(MODE_KEY); return m === 'rawbt' ? 'rawbt' : null } catch { return null } }
+
+export type Mode = 'usb' | 'bluetooth' | 'rawbt'
 export type PrinterState = {
   status: 'unsupported' | 'disconnected' | 'connecting' | 'connected'
+  mode?: Mode
   name?: string
   problem?: string
+  can: { usb: boolean; bluetooth: boolean; rawbt: boolean }      // what this device can use
 }
 
-let state: PrinterState = { status: usb() ? 'disconnected' : 'unsupported' }
+// Handheld (Bluetooth / RawBT) printing is for manager accounts only for now: allowHandheld() is called when someone signs in.
+let allowed = false
+const can = { usb: !!usb(), bluetooth: false, rawbt: false }
+let state: PrinterState = { status: can.usb ? 'disconnected' : 'unsupported', can }
 const listeners = new Set<() => void>()
-const set = (s: PrinterState) => { state = s; listeners.forEach(l => l()) }
+const set = (s: Omit<PrinterState, 'can'>) => { state = { ...s, can }; listeners.forEach(l => l()) }
 
 let dev: UsbDevice | null = null
 let endpoint = 0
+let btDev: BtDevice | null = null
+let btChar: BtChar | null = null
+let rawbt = false
 
 const WINDOWS_HINT =
   'Windows is holding this printer with its own driver. Swap it to the WinUSB driver (see TERMINAL_SETUP.md), then try again.'
@@ -64,7 +97,8 @@ async function open(d: UsbDevice) {
   if (!found) throw new Error('This USB device has no printing channel. Pick the printer, not another device.')
   await d.claimInterface(found.iface)
   dev = d; endpoint = found.ep
-  set({ status: 'connected', name: d.productName || d.manufacturerName || 'USB printer' })
+  btDev = null; btChar = null; rawbt = false; setPaperCols(COLS)
+  set({ status: 'connected', mode: 'usb', name: d.productName || d.manufacturerName || 'USB printer' })
 }
 
 function explain(e: unknown): string {
@@ -78,6 +112,7 @@ function explain(e: unknown): string {
 /** Reconnect to a printer this browser was already allowed to use. Safe to call any time. */
 export async function restorePrinter() {
   const api = usb()
+  if (allowed && savedMode() === 'rawbt' && !dev && !btChar && !rawbt) { enableRawbt(false); return }
   if (!api || state.status === 'connecting') return
   let last: unknown = null
   try {
@@ -86,6 +121,77 @@ export async function restorePrinter() {
     }
   } catch (e) { last = e }
   if (last) set({ status: 'disconnected', problem: explain(last) || undefined })
+}
+
+// ───────────── Bluetooth (BLE) ─────────────
+async function btOpen(d: BtDevice) {
+  const server = await d.gatt!.connect()
+  let found: BtChar | null = null
+  for (const svc of await server.getPrimaryServices()) {
+    for (const c of await svc.getCharacteristics()) {
+      if (c.properties.writeWithoutResponse || c.properties.write) { found = found ?? c; if (c.properties.writeWithoutResponse) found = c }
+    }
+  }
+  if (!found) throw new Error('This Bluetooth device has nothing to print to. If it is the P58E, use the RawBT app option instead.')
+  btChar = found; btDev = d; dev = null; rawbt = false
+  setPaperCols(COLS_58)
+  set({ status: 'connected', mode: 'bluetooth', name: d.name || 'Bluetooth printer' })
+}
+
+/** Ask the person to pick a Bluetooth printer (58mm handheld such as the P58E). Must be called from a tap. */
+export async function connectBluetooth() {
+  const api = bluetooth()
+  if (!api) return
+  set({ status: 'connecting', mode: 'bluetooth' })
+  try {
+    const d = await api.requestDevice({ acceptAllDevices: true, optionalServices: BT_SERVICES })
+    d.addEventListener('gattserverdisconnected', () => { if (btDev === d) { btChar = null; set({ status: 'disconnected', problem: 'The Bluetooth printer disconnected. Check that it is on, then connect it again.' }) } })
+    await btOpen(d)
+  } catch (e) {
+    btDev = null; btChar = null
+    const err = e as { name?: string; message?: string }
+    set({ status: 'disconnected', problem: err?.name === 'NotFoundError' ? undefined : (err?.message || 'Could not connect to the Bluetooth printer.') })
+  }
+}
+
+// ───────────── RawBT app (Android) ─────────────
+let rawQueue: Uint8Array[] = []
+let rawTimer: ReturnType<typeof setTimeout> | null = null
+function rawFlush() {
+  rawTimer = null
+  const total = rawQueue.reduce((n, b) => n + b.length, 0), all = new Uint8Array(total)
+  let o = 0; for (const b of rawQueue) { all.set(b, o); o += b.length }
+  rawQueue = []
+  let bin = ''; for (let i = 0; i < all.length; i += 0x8000) bin += String.fromCharCode(...all.subarray(i, i + 0x8000))
+  window.location.href = `intent:base64,${btoa(bin)}#Intent;scheme=rawbt;package=ru.a402d.rawbtprinter;end;`
+}
+
+/** Print through the free RawBT app. Slips sent close together are joined into one print job. */
+export function enableRawbt(remember = true) {
+  btDev = null; btChar = null; dev = null; rawbt = true
+  setPaperCols(COLS_58)
+  if (remember) { try { localStorage.setItem(MODE_KEY, 'rawbt') } catch { /* not remembered */ } }
+  set({ status: 'connected', mode: 'rawbt', name: 'RawBT app' })
+}
+
+/** Turn Bluetooth / RawBT printing on or off for the signed-in account (manager only for now). */
+export function allowHandheld(on: boolean) {
+  allowed = on
+  can.bluetooth = on && !!bluetooth()
+  can.rawbt = on && isAndroid
+  if (!on && (btChar || rawbt)) { disconnectPrinter(); return }
+  if (on && savedMode() === 'rawbt' && !rawbt) { enableRawbt(false); return }
+  const { can: _c, ...rest } = state; void _c
+  set({ ...rest, status: rest.status === 'unsupported' && (can.bluetooth || can.rawbt) ? 'disconnected' : rest.status === 'disconnected' && !can.usb && !can.bluetooth && !can.rawbt ? 'unsupported' : rest.status })
+}
+
+/** Forget the current printer so another can be chosen. */
+export function disconnectPrinter() {
+  try { btDev?.gatt?.connected && (btDev as unknown as { gatt: { disconnect(): void } }).gatt.disconnect() } catch { /* already gone */ }
+  btDev = null; btChar = null; dev = null; rawbt = false
+  try { localStorage.removeItem(MODE_KEY) } catch { /* ignore */ }
+  setPaperCols(COLS)
+  set({ status: can.usb || can.bluetooth || can.rawbt ? 'disconnected' : 'unsupported' })
 }
 
 /** Ask the person to pick the printer. Must be called from a tap (browser rule). */
@@ -101,12 +207,34 @@ export async function connectPrinter(showAll = false) {
   }
 }
 
+async function sendBluetooth(bytes: Uint8Array) {
+  if (!btDev || !btChar) throw new Error('Printer not connected.')
+  if (!btDev.gatt?.connected) await btOpen(btDev)                  // the printer went to sleep: reconnect without asking
+  const c = btChar as BtChar
+  for (let i = 0; i < bytes.length; i += 100) {
+    const part = bytes.slice(i, i + 100)
+    if (c.properties.writeWithoutResponse) await c.writeValueWithoutResponse(part); else await c.writeValue(part)
+    await new Promise(r => setTimeout(r, 20))                       // small printers drop data if it comes too fast
+  }
+}
+
 async function send(bytes: Uint8Array) {
+  if (rawbt) { rawQueue.push(bytes); if (!rawTimer) rawTimer = setTimeout(rawFlush, 350); return }
+  if (btChar) return sendBluetooth(bytes)
   if (!dev) throw new Error('Printer not connected.')
   for (let i = 0; i < bytes.length; i += 4096) {
     const r = await dev.transferOut(endpoint, bytes.slice(i, i + 4096))
     if (r.status !== 'ok') throw new Error('The printer did not accept the data.')
   }
+}
+
+// The printer stopped taking data: say so and let the person reconnect (a Bluetooth one keeps its pairing for a quiet retry).
+function lost() {
+  const bt = !!btChar
+  if (!bt) dev = null
+  btChar = null
+  set({ status: 'disconnected', problem: bt ? 'The Bluetooth printer stopped responding. Check that it is on and close by, then connect it again.'
+    : 'The printer stopped responding. Check the cable and power, then connect it again.' })
 }
 
 /** Print a slip: straight to the USB printer if connected, otherwise the browser print window.
@@ -117,8 +245,7 @@ export async function printSlip(data: SlipData): Promise<string> {
       await send(encodeSlip(data))
       return 'Sent to the printer.'
     } catch {
-      dev = null
-      set({ status: 'disconnected', problem: 'The printer stopped responding. Check the cable and power, then connect it again.' })
+      lost()
       window.print()
       return 'Printer not responding, opened the print window instead.'
     }
@@ -131,8 +258,7 @@ export async function printSlip(data: SlipData): Promise<string> {
 export async function printBytes(bytes: Uint8Array): Promise<boolean> {
   if (state.status !== 'connected') return false
   try { await send(bytes); return true } catch {
-    dev = null
-    set({ status: 'disconnected', problem: 'The printer stopped responding. Check the cable and power, then connect it again.' })
+    lost()
     return false
   }
 }
@@ -140,10 +266,10 @@ export const printerConnected = () => state.status === 'connected'
 
 const api = usb()
 if (api) {
-  api.addEventListener('disconnect', () => { dev = null; set({ status: 'disconnected' }) })
-  api.addEventListener('connect', () => { void restorePrinter() })
-  void restorePrinter()
+  api.addEventListener('disconnect', () => { if (dev) { dev = null; set({ status: 'disconnected' }) } })
+  api.addEventListener('connect', () => { if (!btChar && !rawbt) void restorePrinter() })
 }
+void restorePrinter()
 
 const subscribe = (l: () => void) => { listeners.add(l); return () => { listeners.delete(l) } }
 export const usePrinter = (): PrinterState => useSyncExternalStore(subscribe, () => state)
