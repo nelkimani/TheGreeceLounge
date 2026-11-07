@@ -7,7 +7,8 @@ Last updated: 2 Nov 2026
 - **2 Nov 2026: workflow change to captain orders (migration 022 + app).** The old queue, payment and cash hand-in screens are gone from the app.
 - **2 Nov 2026: stock sheet (migration 023 + app).** The accountant downloads the Excel stock sheet (Stock > **Stock sheet**), types the first stock take in the Opening stock column and uploads it. See "Stock sheet" below.
 - **6 Nov 2026: Upload delivery (migration 024 + app).** Purchasing > **Upload delivery**: pick supplier, type the delivery note number, upload the Excel delivery sheet (Item Name, Qty, Price paid, handwritten selling price). Lines are matched to drinks (changeable, or add as new); one press records stock with cost, adds new drinks and updates selling prices. 024 was tested on a throwaway Postgres 16.
-- Next: run 024, then 022 and 023 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
+- **6 Nov 2026: categories (migration 025).** Every drink is put in its category from the upstairs counter stock list (Beers, Brandy, Cognac, Gin, Liquor, Rum, Whiskey, Wines …); drinks from migration 019 that sat in Spirits etc. are moved. New drinks on a delivery get a suggested category.
+- Next: run 024 and 025, then 022 and 023 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
 
 ## How a sale works now
 1. The waiter picks a table (or Takeaway / Bar sale), keys the order and taps SEND & PRINT.
@@ -64,6 +65,7 @@ Last updated: 2 Nov 2026
 | 020_products_admin.sql | NOT run yet | Database functions behind the Products & prices screen (list, save prices, rename/hide, add product). Needs catalogue.manage |
 | 021_tables_30.sql | NOT run yet | Replaces the 12 demo tables with the real 30 tables (1 to 30). Safe to re-run |
 | 022_captain_orders.sql | NOT run yet | Captain-order workflow: submit_sale, captain_orders, voids, slip reconciliation, sales log report. Run after 021. Safe to re-run. Close any old open tabs first |
+| 025_categorise_drinks.sql | NOT run yet | Moves each drink into its stock-list category (names on the list only; nothing else changes). Run after 024. Safe to re-run |
 | 024_delivery_sheet_upload.sql | NOT run yet | `receive_delivery_sheet`: records a supplier delivery from Excel (stock + cost, new drinks, selling prices). Run after 023. Safe to re-run |
 | 023_stock_sheet_import.sql | NOT run yet | Stock sheet upload: `stock.import` permission and `import_stock_sheet` (adds drinks, loads opening stock once). Run after 022. Safe to re-run |
 
