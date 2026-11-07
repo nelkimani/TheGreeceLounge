@@ -311,7 +311,52 @@ insert into _cat_map(k, cat) values
   ('zappablue750ml', 'Sambuca'),
   ('zappaclear750ml', 'Sambuca'),
   ('zappagreen750ml', 'Sambuca'),
-  ('zappared750ml', 'Sambuca');
+  ('zappared750ml', 'Sambuca'),
+  ('4thstreetsweetred750ml', 'Wines'),
+  ('4thstreetsweetwhite750ml', 'Wines'),
+  ('amarulacream375ml', 'Liquor'),
+  ('amarulacream750ml', 'Liquor'),
+  ('baileysirishcream750ml', 'Liquor'),
+  ('capricedryred1ltr', 'Wines'),
+  ('capricedrywhite1ltr', 'Wines'),
+  ('capricesweetred1l', 'Wines'),
+  ('capricesweetwhite1l', 'Wines'),
+  ('casabuenared1ltr', 'Wines'),
+  ('casabuenawhite1ltr', 'Wines'),
+  ('cellarcaskred750ml', 'Wines'),
+  ('cellarcaskwhite750ml', 'Wines'),
+  ('countyspirit250ml', 'Rum'),
+  ('countyspirit750ml', 'Rum'),
+  ('delmonteallflavours1l', 'Soft drinks'),
+  ('drostdyhofsweetred750ml', 'Wines'),
+  ('grantswithglass1litre', 'Whiskey'),
+  ('grantswithglass750ml', 'Whiskey'),
+  ('heineken00beer330ml', 'Beers'),
+  ('heinekenbottle330ml', 'Beers'),
+  ('heinekencan500ml', 'Beers'),
+  ('hennessy1lt', 'Cognac'),
+  ('huntersdry330ml', 'Beers'),
+  ('jackdaniels750ml', 'Whiskey'),
+  ('jagermeister1lwithcork', 'Liquor'),
+  ('jagermeisterwithcork700ml', 'Liquor'),
+  ('jameson1ltr', 'Whiskey'),
+  ('johnbarrblack1l', 'Whiskey'),
+  ('johnbarrblack750ml', 'Whiskey'),
+  ('martellvs1l', 'Cognac'),
+  ('martellvs750ml', 'Cognac'),
+  ('martellvsop1l', 'Cognac'),
+  ('martellvsop750ml', 'Cognac'),
+  ('peptanglime700ml', 'Soft drinks'),
+  ('redbullenergydrink', 'Soft drinks'),
+  ('robertsonred750ml', 'Wines'),
+  ('robertsonwhite750ml', 'Wines'),
+  ('savannahcider', 'Beers'),
+  ('southerncomfort70cl', 'Whiskey'),
+  ('viceroybrandy250ml', 'Brandy'),
+  ('viceroybrandy375ml', 'Brandy'),
+  ('viceroybrandy750ml', 'Brandy'),
+  ('williamlawson1ltr', 'Whiskey'),
+  ('williamlawson750ml', 'Whiskey');
 
 insert into categories(name)
 select distinct c.cat from _cat_map c
@@ -332,5 +377,43 @@ begin
   end loop;
   raise notice '% drink(s) moved to their category', n;
 end $$;
+
+-- Anything still sitting in the old catch-all categories (Spirits, Soft drinks & mixers, Ready-to-drink) and not on
+-- the list is placed by the words in its name. A drink that matches no rule stays where it is.
+do $$
+declare r record; n int := 0; cat text;
+begin
+  for r in
+    select p.id, p.name, p.category_id as old_id from products p join categories c on c.id = p.category_id
+    where lower(c.name) in ('spirits', 'soft drinks & mixers', 'ready-to-drink')
+  loop
+    cat := case
+      when r.name ~* '(cask|wine|rosso|sangria|champagne|moet|belaire|four cousins|4th street|drostdy|drosty|caprice|casa ?buena|cassabuena|robertson|mikado|altar)' then 'Wines'
+      when r.name ~* '(hennessy|martel|courvoisier|cognac)' then 'Cognac'
+      when r.name ~* '(brandy|viceroy|hunters choice|richot)' then 'Brandy'
+      when r.name ~* '(\mgin\M|tanqueray|gordon|gilbey|chrome gin|zafiro|caribia gin)' then 'Gin'
+      when r.name ~* '(vodka|smirnoff|absolut|chrome lemon)' then 'Vodka'
+      when r.name ~* '(\mrum\M|bacardi|captain|morgan|muckpit|county|malibu|old monk|\mkc\M)' then 'Rum'
+      when r.name ~* '(whisk|jameson|grants?\M|jack daniel|walker|lawson|john barr|chivas|ballantine|glenfiddich|singleton|southern comfort|vat 69|bond 7|famous|black ?(n|&|and) ?white|imperial blue|all seasons)' then 'Whiskey'
+      when r.name ~* '(sambuca|zappa)' then 'Sambuca'
+      when r.name ~* '(martini|vermouth)' then 'Martin'
+      when r.name ~* '(tusker|heineken|guinness|guiness|balozi|snapp|savanna|pilsner|whitecap|white cap|hunters (gold|dry)|cider|\mbeer\M|lager|punch|guarana)' then 'Beers'
+      when r.name ~* '(amarula|baileys|jager|tequila|liqueur|cream|khalua|kahlua|sheridan|curacao|cuervo|don julio|tia maria|peppermint)' then 'Liquor'
+      when r.name ~* '(juice|soda|water|redbull|red bull|energy|monster|tonic|lemonade|delmonte|minute maid|peptang|keringet|predator|shark)' then 'Soft drinks'
+      else null end;
+    if cat is null then continue; end if;
+    insert into categories(name) select cat where not exists (select 1 from categories x where lower(x.name) = lower(cat));
+    update products set category_id = (select id from categories where lower(name) = lower(cat) limit 1) where id = r.id;
+    perform write_audit('product.category', 'products', r.id::text, jsonb_build_object('category_id', r.old_id), jsonb_build_object('category'
+      , cat), 'Category set to ' || cat || ' by name (migration 025)');
+    n := n + 1;
+  end loop;
+  raise notice '% more drink(s) placed by their name', n;
+end $$;
+
+-- Remove the old catch-all categories once nothing is in them.
+delete from categories c where lower(c.name) in ('spirits', 'soft drinks & mixers', 'ready-to-drink')
+  and not exists (select 1 from products p where p.category_id = c.id)
+  and not exists (select 1 from categories k where k.parent_id = c.id);
 
 commit;
