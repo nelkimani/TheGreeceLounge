@@ -27,6 +27,7 @@ export default function OfficeShell({ profile, items, activeId, onGo, onSignOut,
   const [collapsed, setCollapsed] = useState(readCollapsed)
   const [palette, setPalette] = useState(false)
   const [help, setHelp] = useState(false)
+  const [drawer, setDrawer] = useState(false)      // phone: the sidebar slides in over the screen
   const main = useRef<HTMLElement>(null)
 
   const toggleSidebar = () => setCollapsed(c => {
@@ -45,6 +46,7 @@ export default function OfficeShell({ profile, items, activeId, onGo, onSignOut,
     const k = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
       if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); setHelp(false); setPalette(p => !p); return }
+      if (e.key === 'Escape' && !dialogOpen()) setDrawer(false)
       if (e.altKey || mod || isTyping(e.target) || dialogOpen()) return
       if (e.key === '/') { e.preventDefault(); setPalette(true) }
       else if (e.key === '?') { e.preventDefault(); setHelp(true) }
@@ -54,7 +56,7 @@ export default function OfficeShell({ profile, items, activeId, onGo, onSignOut,
     return () => window.removeEventListener('keydown', k)
   }, [])
 
-  const go = (it: NavItem | 'home') => { setPalette(false); onGo(it) }
+  const go = (it: NavItem | 'home') => { setPalette(false); setDrawer(false); onGo(it) }
 
   return (
     <div className="flex h-full min-h-0 bg-slate-900">
@@ -62,9 +64,11 @@ export default function OfficeShell({ profile, items, activeId, onGo, onSignOut,
          className="sr-only z-[70] rounded-lg bg-amber-500 px-4 py-2 font-semibold text-on-accent focus:not-sr-only focus:fixed focus:left-2 focus:top-2">
         Skip to content
       </a>
-      <Sidebar items={items} activeId={activeId} collapsed={collapsed} onToggle={toggleSidebar} onGo={go} onPalette={() => setPalette(true)} />
+      {drawer && <div className="fixed inset-0 z-40 bg-black/60 md:hidden" onClick={() => setDrawer(false)} aria-hidden="true" />}
+      <Sidebar items={items} activeId={activeId} collapsed={collapsed} onToggle={toggleSidebar} onGo={go} onPalette={() => setPalette(true)}
+        drawer={drawer} onCloseDrawer={() => setDrawer(false)} onSignOut={onSignOut} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header profile={profile} unsent={unsent} onSignOut={onSignOut} onHelp={() => setHelp(true)} />
+        <Header profile={profile} unsent={unsent} onSignOut={onSignOut} onHelp={() => setHelp(true)} onMenu={() => setDrawer(true)} />
         <main id="office-main" ref={main} tabIndex={-1} className="office-main min-h-0 flex-1 overflow-y-auto focus:outline-none">
           {children}
         </main>
@@ -77,8 +81,12 @@ export default function OfficeShell({ profile, items, activeId, onGo, onSignOut,
 
 /* ───────────────────────── sidebar ───────────────────────── */
 
-function Sidebar({ items, activeId, collapsed, onToggle, onGo, onPalette }:
-  { items: NavItem[]; activeId: string; collapsed: boolean; onToggle: () => void; onGo: (i: NavItem | 'home') => void; onPalette: () => void }) {
+function Sidebar({ items: all, activeId, collapsed: wantCollapsed, onToggle, onGo, onPalette, drawer, onCloseDrawer, onSignOut }:
+  { items: NavItem[]; activeId: string; collapsed: boolean; onToggle: () => void; onGo: (i: NavItem | 'home') => void; onPalette: () => void; drawer: boolean; onCloseDrawer: () => void; onSignOut: () => void }) {
+  const items = all
+  const [theme, toggleTheme] = useTheme()
+  // In the phone drawer the sidebar is always full width; "collapsed" only applies on a computer.
+  const collapsed = wantCollapsed && !drawer
   const nav = useRef<HTMLElement>(null)
 
   // Up / Down move through the sidebar; Tab still walks it item by item.
@@ -96,7 +104,7 @@ function Sidebar({ items, activeId, collapsed, onToggle, onGo, onPalette }:
     return (
       <button key={id} data-nav onClick={go} title={collapsed ? label : undefined} aria-label={label}
         aria-current={active ? 'page' : undefined}
-        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-base font-medium
+        className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-base font-medium max-md:h-12
           ${active ? 'bg-amber-500 text-on-accent' : 'text-slate-200 hover:bg-slate-700'} ${collapsed ? 'justify-center px-0' : ''}`}>
         <Icon name={icon} className="h-5 w-5 shrink-0" />
         {!collapsed && <span className="truncate">{label}</span>}
@@ -105,13 +113,17 @@ function Sidebar({ items, activeId, collapsed, onToggle, onGo, onPalette }:
   }
 
   return (
-    <aside className={`flex shrink-0 flex-col border-r border-slate-700 bg-slate-800 ${collapsed ? 'w-[4.25rem]' : 'w-[15rem]'}`}>
+    <aside className={`flex shrink-0 flex-col border-r border-slate-700 bg-slate-800
+      max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:w-[min(18rem,85vw)] max-md:transition-transform
+      ${drawer ? 'max-md:translate-x-0 max-md:shadow-2xl' : 'max-md:-translate-x-full max-md:invisible'}
+      ${collapsed ? 'md:w-[4.25rem]' : 'md:w-[15rem]'}`}>
       <div className="flex h-topbar shrink-0 items-center gap-2 border-b border-slate-700 px-3">
         {!collapsed && <div className="min-w-0 flex-1 truncate text-base font-bold leading-tight">The Glizz Lounge<div className="text-xs font-normal text-slate-400">Point of sale</div></div>}
-        <button onClick={onToggle} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-700"
+        <button onClick={onToggle} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg hover:bg-slate-700 max-md:hidden"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} title={`${collapsed ? 'Expand' : 'Collapse'} sidebar ( [ )`}>
           <Icon name="panel" className="h-5 w-5" />
         </button>
+        <button onClick={onCloseDrawer} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xl hover:bg-slate-700 md:hidden" aria-label="Close menu">✕</button>
       </div>
 
       <nav ref={nav} onKeyDown={onKey} aria-label="Screens" className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -130,7 +142,11 @@ function Sidebar({ items, activeId, collapsed, onToggle, onGo, onPalette }:
         })}
       </nav>
 
-      <div className="shrink-0 border-t border-slate-700 p-2">
+      <div className="flex shrink-0 gap-2 border-t border-slate-700 p-2 md:hidden">
+        <button onClick={toggleTheme} className="h-11 flex-1 rounded-lg bg-slate-700 text-base font-semibold">{theme === 'dark' ? 'Light theme' : 'Dark theme'}</button>
+        <button onClick={onSignOut} className="h-11 flex-1 rounded-lg bg-slate-700 text-base font-semibold">Sign out</button>
+      </div>
+      <div className="shrink-0 border-t border-slate-700 p-2 max-md:hidden">
         <button onClick={onPalette} title="Go to any screen (Ctrl + K)" aria-label="Go to any screen"
           className={`flex h-10 w-full items-center gap-3 rounded-lg px-3 text-sm text-slate-300 hover:bg-slate-700 ${collapsed ? 'justify-center px-0' : ''}`}>
           <Icon name="search" className="h-5 w-5 shrink-0" />
@@ -143,7 +159,7 @@ function Sidebar({ items, activeId, collapsed, onToggle, onGo, onPalette }:
 
 /* ───────────────────────── top bar ───────────────────────── */
 
-function Header({ profile, unsent, onSignOut, onHelp }: { profile: Profile; unsent: number; onSignOut: () => void; onHelp: () => void }) {
+function Header({ profile, unsent, onSignOut, onHelp, onMenu }: { profile: Profile; unsent: number; onSignOut: () => void; onHelp: () => void; onMenu: () => void }) {
   const { date, status } = useTradingDay(can(profile, 'recon.view_all'))
   const [now, setNow] = useState(new Date())
   const [online, setOnline] = useState(navigator.onLine)
@@ -159,33 +175,36 @@ function Header({ profile, unsent, onSignOut, onHelp }: { profile: Profile; unse
   const calendarToday = new Date(now.getTime() + 3 * 3600_000).toISOString().slice(0, 10)
   const spillover = date !== calendarToday
   const s = status === 'loading' || status === 'unknown' ? null : DAY_STATUS[status]
-  const control = 'flex h-9 shrink-0 items-center justify-center rounded-lg bg-slate-700 px-3 text-sm font-semibold hover:bg-slate-600'
+  const control = 'flex h-10 shrink-0 items-center justify-center rounded-lg bg-slate-700 px-3 text-sm font-semibold hover:bg-slate-600 md:h-9'
 
   return (
-    <header className="flex h-topbar shrink-0 items-center gap-3 border-b border-slate-700 bg-slate-800 px-4 text-base">
+    <header className="flex h-topbar shrink-0 items-center gap-2 border-b border-slate-700 bg-slate-800 px-3 text-base md:gap-3 md:px-4">
+      <button onClick={onMenu} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-700 md:hidden" aria-label="Open menu">
+        <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
       <div className="min-w-0">
         <div className="truncate font-semibold leading-tight">{formatTradingDate(date)}</div>
-        <div className="truncate text-xs leading-tight text-slate-400">
+        <div className="hidden truncate text-xs leading-tight text-slate-400 sm:block">
           {spillover ? 'Still last night’s trading day (it changes at 05:00)' : 'Trading day'}
         </div>
       </div>
-      {s && <span title={s.hint} className={`shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-sm font-semibold ${s.tone}`}>Day: {s.label}</span>}
-      {status === 'loading' && <span className="shrink-0 text-sm text-slate-400">Checking day…</span>}
+      {s && <span title={s.hint} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold md:px-3 md:text-sm ${s.tone}`}><span className="max-sm:hidden">Day: </span>{s.label}</span>}
+      {status === 'loading' && <span className="hidden shrink-0 text-sm text-slate-400 sm:inline">Checking day…</span>}
       <span className="flex-1" />
-      {unsent > 0 && <span className="shrink-0 whitespace-nowrap rounded bg-red-700 px-3 py-1 font-semibold">NOT SENT: {unsent}</span>}
-      <span className={`shrink-0 whitespace-nowrap rounded px-3 py-1 text-sm font-semibold ${online ? 'bg-green-700' : 'bg-red-700'}`}>
-        {online ? '● Online' : '● OFFLINE'}
+      {unsent > 0 && <span className="shrink-0 whitespace-nowrap rounded bg-red-700 px-2 py-1 text-sm font-semibold md:px-3 md:text-base"><span className="max-sm:hidden">NOT SENT: </span><span className="sm:hidden">⚠ </span>{unsent}</span>}
+      <span className={`shrink-0 whitespace-nowrap rounded px-2 py-1 text-sm font-semibold md:px-3 ${online ? 'bg-green-700' : 'bg-red-700'}`} title={online ? 'Online' : 'Offline'}>
+        {online ? '●' : '● OFFLINE'}<span className="max-sm:hidden">{online ? ' Online' : ''}</span>
       </span>
-      <span className="shrink-0 tabular-nums">{now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</span>
-      <button onClick={onHelp} className={control} aria-label="Keyboard shortcuts" title="Keyboard shortcuts ( ? )"><Icon name="keyboard" className="h-5 w-5" /></button>
-      <button onClick={toggleTheme} className={control} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
+      <span className="hidden shrink-0 tabular-nums sm:inline">{now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</span>
+      <button onClick={onHelp} className={control + ' max-md:hidden'} aria-label="Keyboard shortcuts" title="Keyboard shortcuts ( ? )"><Icon name="keyboard" className="h-5 w-5" /></button>
+      <button onClick={toggleTheme} className={control + ' max-md:hidden'} aria-label={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}>
         {theme === 'dark' ? 'Light' : 'Dark'}
       </button>
       <div className="hidden min-w-0 text-right leading-tight lg:block">
         <div className="truncate font-semibold">{profile.full_name}</div>
         <div className="truncate text-xs text-slate-400">{profile.roles.join(', ')}</div>
       </div>
-      <button onClick={onSignOut} className={control}>Sign out</button>
+      <button onClick={onSignOut} className={control + ' max-md:hidden'}>Sign out</button>
     </header>
   )
 }

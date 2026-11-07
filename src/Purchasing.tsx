@@ -106,16 +106,16 @@ function Receive({ suppliers, products, flash, reload }: { suppliers: Supplier[]
       </div>
       {lines.length > 0 && (
         <div className="space-y-2">
-          <div className="grid grid-cols-[1fr_130px_110px_110px_130px_130px_40px] gap-2 text-sm text-slate-400">
+          <div className="hidden grid-cols-[1fr_130px_110px_110px_130px_130px_40px] gap-2 text-sm text-slate-400 md:grid">
             <span>Product</span><span>Goes to</span><span>Packs</span><span>Units per pack</span><span>Cost per pack</span><span>Line total</span><span /></div>
           {lines.map((l, i) => (
-            <div key={i} className="grid grid-cols-[1fr_130px_110px_110px_130px_130px_40px] items-center gap-2 rounded-lg bg-slate-800 p-2">
-              <div className="text-lg font-semibold">{l.name}<div className="text-sm font-normal text-slate-400">= {qtyBase(l)} {l.unit} · {kes(costBase(l))} per {l.unit}</div></div>
-              <select className={input + ' !px-1'} value={l.location} onChange={e => set(i, { location: e.target.value })}>{LOCS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select>
-              <input className={input} type="number" min="0" value={l.packs} onChange={e => set(i, { packs: e.target.value })} />
-              <input className={input} type="number" min="1" value={l.pack_size} onChange={e => set(i, { pack_size: e.target.value })} />
-              <input className={input} type="number" min="0" value={l.cost_per_pack} onChange={e => set(i, { cost_per_pack: e.target.value })} />
-              <b className="text-lg">{kes(Number(l.packs || 0) * Number(l.cost_per_pack || 0))}</b>
+            <div key={i} className="grid grid-cols-2 items-center gap-2 rounded-lg bg-slate-800 p-2 md:grid-cols-[1fr_130px_110px_110px_130px_130px_40px]">
+              <div className="col-span-2 text-lg font-semibold md:col-span-1">{l.name}<div className="text-sm font-normal text-slate-400">= {qtyBase(l)} {l.unit} · {kes(costBase(l))} per {l.unit}</div></div>
+              <label className="block"><span className="text-xs text-slate-400 md:hidden">Goes to</span><select className={input + ' !px-1 w-full'} value={l.location} onChange={e => set(i, { location: e.target.value })}>{LOCS.map(([c, n]) => <option key={c} value={c}>{n}</option>)}</select></label>
+              <label className="block"><span className="text-xs text-slate-400 md:hidden">Packs</span><input className={input + ' w-full'} type="number" min="0" value={l.packs} onChange={e => set(i, { packs: e.target.value })} /></label>
+              <label className="block"><span className="text-xs text-slate-400 md:hidden">Units per pack</span><input className={input + ' w-full'} type="number" min="1" value={l.pack_size} onChange={e => set(i, { pack_size: e.target.value })} /></label>
+              <label className="block"><span className="text-xs text-slate-400 md:hidden">Cost per pack</span><input className={input + ' w-full'} type="number" min="0" value={l.cost_per_pack} onChange={e => set(i, { cost_per_pack: e.target.value })} /></label>
+              <b className="text-lg max-md:col-span-1">{kes(Number(l.packs || 0) * Number(l.cost_per_pack || 0))}</b>
               <button className="h-10 rounded bg-slate-600" onClick={() => setLines(x => x.filter((_, j) => j !== i))}>✕</button>
             </div>))}
           <div className="flex items-center justify-between pt-2">
