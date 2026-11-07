@@ -85,12 +85,12 @@ export default function App() {
         <span className="leading-tight">{t.label}</span>
       </button>
     )
-    const grid = 'grid grid-cols-[repeat(auto-fill,minmax(11.5rem,1fr))] gap-3'
+    const grid = 'grid grid-cols-[repeat(auto-fill,minmax(min(11.5rem,100%),1fr))] gap-3 max-sm:grid-cols-2'
     const heading = (s: string) => <h2 className="mb-2 text-sm font-semibold uppercase tracking-wider text-slate-400">{s}</h2>
     const work = items.filter(i => i.kind === 'work')
     const manage = items.filter(i => i.kind === 'manage')
     return (
-      <div className={isTerminal ? 'mx-auto flex max-w-5xl flex-col gap-5 p-6' : 'flex flex-col gap-5 p-6'}>
+      <div className={isTerminal ? 'mx-auto flex max-w-5xl flex-col gap-5 p-6' : 'flex flex-col gap-5 p-4 md:p-6'}>
         <h1 className="text-3xl font-bold">Hello, {p.full_name}</h1>
         {isTerminal ? (
           <>

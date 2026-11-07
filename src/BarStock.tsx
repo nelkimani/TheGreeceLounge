@@ -65,7 +65,7 @@ export default function BarStock({ profile, onDone }: { profile: Profile; onDone
   )
 
   return (
-    <div className="grid grid-cols-[1fr_460px] gap-4 p-4">
+    <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-[1fr_460px] lg:p-4">
       <div>
         <div className="mb-3 flex items-center gap-3">
           <h2 className="mr-auto text-3xl font-bold">Bar stock</h2>

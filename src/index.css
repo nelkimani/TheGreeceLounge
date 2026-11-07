@@ -124,7 +124,29 @@ input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offs
 .office-main > .mx-auto.max-w-5xl:not(.office-narrow),
 .office-main > .mx-auto.max-w-6xl:not(.office-narrow) { max-width: none; padding: 1.5rem; }
 /* The tab / bill screen keeps its two columns but lets the bill column grow. */
-.office-main > .mx-auto.max-w-5xl.grid:not(.office-narrow) { grid-template-columns: minmax(0, 1fr) 24rem; }
+.office-main > .mx-auto.max-w-5xl.grid:not(.office-narrow) { grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1024px) {
+  .office-main > .mx-auto.max-w-5xl.grid:not(.office-narrow) { grid-template-columns: minmax(0, 1fr) 24rem; }
+}
+
+/* ------------------------------------------------------------------ *
+ * 3c. PHONES (manager and accountant on a mobile device, below 768px wide)
+ *     The sidebar becomes a slide-in menu (OfficeShell). Here: less padding, wide tables scroll sideways
+ *     instead of pushing the page wider than the screen, and fixed-width boxes shrink to the screen.
+ * ------------------------------------------------------------------ */
+@media (max-width: 767px) {
+  .office-main > .mx-auto.max-w-3xl:not(.office-narrow),
+  .office-main > .mx-auto.max-w-4xl:not(.office-narrow),
+  .office-main > .mx-auto.max-w-5xl:not(.office-narrow),
+  .office-main > .mx-auto.max-w-6xl:not(.office-narrow) { padding: 0.75rem; }
+  .office-main > div.p-6, .office-main > div.p-4 { padding: 0.75rem; }
+  .office-main { overflow-x: hidden; }
+  .office-main table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  .office-main input[class*="w-"], .office-main select[class*="w-"] { width: 100%; max-width: 100%; }
+  .office-main input, .office-main select, .office-main textarea { font-size: 16px; }   /* stops iOS zooming into a field */
+  .office-main h1 { font-size: 1.5rem; line-height: 2rem; }
+  .office-main .grid-cols-\[1fr_460px\] { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Sidebar items: a clear keyboard focus that stays inside the item. */
 .office-main:focus { outline: none; }
