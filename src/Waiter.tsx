@@ -119,6 +119,7 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
   const [sending, setSending] = useState(false)
   const [err, setErr] = useState('')
   const [saved, setSaved] = useState(false)
+  const [cartOpen, setCartOpen] = useState(false)      // phones: the order is a full-screen sheet opened from the bottom bar
 
   const cats = useMemo(() => [...(topIds.length >= 4 ? [MINE] : []), 'All', ...Array.from(new Set(products.map(p => p.category?.name ?? 'Other')))], [products, topIds])
   const query = q.trim().toLowerCase()
@@ -189,16 +190,16 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
   const btn = 'h-[3.75rem] w-full rounded-xl px-3 text-left text-xl font-semibold'
   const noteLine = lines.find(l => l.product_id === noteFor)
   return (
-    <div className="order-layout fill-screen">
-      <div className="flex flex-col gap-2 overflow-y-auto">
-        <Btn kind="ghost" onClick={onBack} className="!h-[3.75rem]">← Tables</Btn>
+    <div className="order-layout fill-screen max-md:flex max-md:flex-col max-md:gap-2 max-md:p-2">
+      <div className="flex flex-col gap-2 overflow-y-auto max-md:shrink-0 max-md:flex-row max-md:overflow-x-auto max-md:overflow-y-hidden max-md:pb-1">
+        <Btn kind="ghost" onClick={onBack} className="!h-[3.75rem] max-md:!h-11 max-md:shrink-0 max-md:whitespace-nowrap max-md:!px-4 max-md:!text-base">← Tables</Btn>
         {cats.map(c => (
           <button key={c} onClick={() => { setCat(c); setQ('') }}
-            className={`${btn} ${cat === c && !query ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{c}</button>
+            className={`${btn} max-md:!h-11 max-md:!w-auto max-md:shrink-0 max-md:whitespace-nowrap max-md:!px-4 max-md:!text-base ${cat === c && !query ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{c}</button>
         ))}
       </div>
 
-      <div className="flex min-h-0 flex-col gap-3">
+      <div className="flex min-h-0 flex-col gap-3 max-md:flex-1 max-md:gap-2">
         <div className="relative">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"><Icon name="search" className="h-6 w-6" /></span>
           <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Search products" aria-label="Search products"
@@ -222,7 +223,14 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-slate-800 p-3">
+      <button onClick={() => setCartOpen(true)} aria-label="View the order"
+        className={`flex h-16 shrink-0 items-center justify-between gap-3 rounded-xl px-4 text-left md:hidden ${count > 0 ? 'bg-amber-500 text-on-accent' : 'bg-slate-700 text-slate-300'}`}>
+        <span className="text-lg font-semibold">{count > 0 ? `View order · ${count} item${count === 1 ? '' : 's'}` : 'No items yet'}</span>
+        <span className="text-2xl font-bold">{kes(total)}</span>
+      </button>
+
+      <div className={`flex min-h-0 flex-col gap-2 overflow-hidden rounded-xl bg-slate-800 p-3 max-md:fixed max-md:inset-0 max-md:z-50 max-md:rounded-none ${cartOpen ? '' : 'max-md:hidden'}`}>
+        <button onClick={() => setCartOpen(false)} className="h-12 shrink-0 rounded-lg bg-slate-700 text-lg font-semibold md:hidden">← Back to products</button>
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1 truncate text-2xl font-bold">{target.label}</div>
           {lines.length > 0 && state !== 'not_sent' &&
