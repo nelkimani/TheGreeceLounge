@@ -1,7 +1,7 @@
 import { Profile, can } from './supabase'
 import type { IconName } from './icons'
 
-export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet'
+export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'printsheet'
 
 // The office sidebar groups screens by job. Terminals ignore groups and use `kind` for the tile home.
 export type Group = 'sales' | 'stock' | 'money' | 'reports' | 'admin'
@@ -38,6 +38,7 @@ export function navItems(profile: Profile): NavItem[] {
 
     item('stock', 'stock', 'Bar stock', 'stock', 'manage', stationPerms.includes('bar') || can(profile, 'stock.view_all')),
     item('stocksheet', 'sheet', 'Stock sheet', 'stock', 'manage', can(profile, 'stock.import')),
+    item('printsheet', 'sheet', 'Print stock sheet', 'stock', 'manage', can(profile, 'catalogue.manage')),
     item('approvals', 'approvals', 'Approvals', 'money', 'manage', can(profile, 'approval.grant')),
     item('recon', 'recon', 'Reconciliation', 'money', 'manage', can(profile, 'recon.view_all')),
     item('purchasing', 'purchasing', 'Purchasing', 'stock', 'manage', can(profile, 'goods.receive') || can(profile, 'supplier.manage')),
