@@ -155,3 +155,48 @@ export function encodeCaptain(d: CaptainData, at: Date = new Date()): Uint8Array
   raw(GS, 0x56, 0x01)
   return Uint8Array.from(bytes)
 }
+
+// ───────────── Daily stock sheet (handwritten): one block per drink with blanks to fill in ─────────────
+export type SheetItem = { name: string; price: number | null; opening: number | null }
+export type SheetSection = { category: string; items: SheetItem[] }
+export type StockSheetData = { dateLabel: string; sections: SheetSection[] }
+export type SheetLine = { t: string; k: 'title' | 'plain' | 'cat' | 'name' | 'row' | 'rule' }
+
+/** The sheet as text lines. The screen preview and the printer both use this, so they always match. */
+export function stockSheetLines(d: StockSheetData, cols = paperCols): SheetLine[] {
+  const out: SheetLine[] = []
+  const add = (t: string, k: SheetLine['k'] = 'plain') => out.push({ t, k })
+  const centre = (t: string) => ' '.repeat(Math.max(0, Math.floor((cols - t.length) / 2))) + t
+  add('THE GLIZZ LOUNGE', 'title'); add('STOCK SHEET', 'title')
+  add(centre(clean(`Stock take: ${d.dateLabel}`)))
+  add('Counted by: ' + '_'.repeat(Math.max(8, cols - 12)))
+  add('Checked by: ' + '_'.repeat(Math.max(8, cols - 12)))
+  add('-'.repeat(cols), 'rule')
+  for (const sec of d.sections) {
+    add(centre(clean(sec.category.toUpperCase())).padEnd(cols), 'cat')
+    for (const it of sec.items) {
+      for (const part of wrap(clean(it.name), cols)) add(part, 'name')
+      const price = it.price == null ? '' : money(it.price)
+      const open = it.opening == null ? '______' : String(Math.round(it.opening * 1000) / 1000).slice(0, 6).padEnd(6)
+      add(`${price.padStart(7)} Open:${open} Issued:______ Count:_______`.slice(0, cols), 'row')
+      add('-'.repeat(cols), 'rule')
+    }
+  }
+  return out
+}
+
+export function encodeStockSheet(d: StockSheetData): Uint8Array {
+  const bytes: number[] = []
+  const raw = (...b: number[]) => bytes.push(...b)
+  const text = (s: string) => { for (const ch of s) bytes.push(ch.charCodeAt(0)) }
+  raw(ESC, 0x40)
+  for (const l of stockSheetLines(d)) {
+    if (l.k === 'title') { raw(ESC, 0x61, 1, ESC, 0x45, 1, GS, 0x21, l.t === 'STOCK SHEET' ? 0x01 : 0x11) ; text(l.t); raw(LF, GS, 0x21, 0, ESC, 0x45, 0, ESC, 0x61, 0); continue }
+    if (l.k === 'cat') { raw(GS, 0x42, 1, ESC, 0x45, 1); text(l.t); raw(GS, 0x42, 0, ESC, 0x45, 0, LF); continue }
+    if (l.k === 'name') { raw(ESC, 0x45, 1); text(l.t); raw(ESC, 0x45, 0, LF); continue }
+    text(l.t); raw(LF)
+  }
+  raw(ESC, 0x64, 5)
+  raw(GS, 0x56, 0x01)
+  return Uint8Array.from(bytes)
+}
