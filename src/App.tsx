@@ -15,6 +15,8 @@ import Reports from './Reports'
 import OwnerReports from './OwnerReports'
 import Products from './Products'
 import StockSheet from './StockSheet'
+import MySales from './MySales'
+import WaiterSales from './WaiterSales'
 import IssueToCounter from './IssueToCounter'
 import PrintStockSheet from './PrintStockSheet'
 import OfficeShell from './OfficeShell'
@@ -117,6 +119,8 @@ export default function App() {
       {view === 'home' && homeScreen(p)}
       {view === 'waiter' && <Waiter profile={p} onDone={home} onLock={lock} />}
       {view === 'myorders' && <MyOrders profile={p} onDone={home} />}
+      {view === 'mysales' && <MySales profile={p} onDone={home} />}
+      {view === 'waitersales' && <WaiterSales profile={p} onDone={home} />}
       {view === 'stock' && <BarStock profile={p} onDone={home} />}
       {view === 'approvals' && <Approvals onDone={home} />}
       {view === 'recon' && <Recon profile={p} onDone={home} />}

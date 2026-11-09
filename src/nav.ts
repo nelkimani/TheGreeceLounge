@@ -1,7 +1,7 @@
 import { Profile, can } from './supabase'
 import type { IconName } from './icons'
 
-export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'issue' | 'printsheet'
+export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'issue' | 'printsheet' | 'mysales' | 'waitersales'
 
 // The office sidebar groups screens by job. Terminals ignore groups and use `kind` for the tile home.
 export type Group = 'sales' | 'stock' | 'money' | 'reports' | 'admin'
@@ -35,6 +35,7 @@ export function navItems(profile: Profile): NavItem[] {
   return [
     item('waiter', 'orders', 'Take orders', 'sales', 'work', can(profile, 'tab.open')),
     item('myorders', 'orders', 'My orders', 'sales', 'work', can(profile, 'tab.open')),
+    item('mysales', 'reports', 'My sales', 'sales', 'work', can(profile, 'tab.open')),
 
     item('stock', 'stock', 'Bar stock', 'stock', 'manage', stationPerms.includes('bar') || can(profile, 'stock.view_all')),
     item('issue', 'stockroom', 'Issue to counter', 'stock', 'manage', can(profile, 'goods.receive')),
@@ -47,6 +48,7 @@ export function navItems(profile: Profile): NavItem[] {
     item('stockroom', 'stockroom', 'Stock room', 'stock', 'manage',
       can(profile, 'stock.view_all') || stationPerms.includes('kitchen') || stationPerms.includes('choma')),
     item('reports', 'reports', 'Reports & sign-off', 'reports', 'manage', can(profile, 'report.view') || can(profile, 'report.build')),
+    item('waitersales', 'reports', 'Waiter sales', 'reports', 'manage', can(profile, 'report.sales')),
     item('owner', 'owner', 'Owner reports', 'reports', 'manage', can(profile, 'report.sales') || can(profile, 'report.profit')),
     item('products', 'products', 'Products & prices', 'admin', 'manage', can(profile, 'catalogue.manage')),
     item('staff', 'staff', 'Staff', 'admin', 'manage', can(profile, 'staff.manage')),
