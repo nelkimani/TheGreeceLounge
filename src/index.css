@@ -171,3 +171,21 @@ aside nav button:focus-visible { outline-offset: -3px; }
   #receipt { display: block !important; width: 72mm !important; min-width: 0 !important; margin: 0 auto !important;
              padding: 2mm 1mm 12mm !important; box-shadow: none !important; break-inside: avoid; }
 }
+
+/* A4 print of the stock sheet (Print stock sheet > Print on A4): the page is A4 and only #a4sheet is shown. */
+@media print {
+  html[data-print="a4"], html[data-print="a4"] body { width: auto !important; }
+  html[data-print="a4"] body *:not(#a4sheet):not(#a4sheet *):not(:has(#a4sheet)) { display: none !important; }
+  html[data-print="a4"] body *:has(#a4sheet) { display: block !important; position: static !important; inset: auto !important; transform: none !important;
+        width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; margin: 0 !important; padding: 0 !important;
+        border: 0 !important; box-shadow: none !important; background: transparent !important; overflow: visible !important; }
+  html[data-print="a4"] body #a4sheet#a4sheet#a4sheet { display: block !important; width: auto !important; }
+  html[data-print="a4"] body #a4sheet#a4sheet#a4sheet * { display: revert !important; }
+  html[data-print="a4"] body #receipt#receipt { display: none !important; }
+  #a4sheet table { width: 100%; border-collapse: collapse; font-size: 10pt; }
+  #a4sheet th { background: #1f3864; color: #fff; padding: 2mm; border: 0.3mm solid #666; text-align: center; }
+  #a4sheet td { border: 0.3mm solid #666; padding: 0 2mm; height: 7mm; }
+  #a4sheet tr { break-inside: avoid; }
+  #a4sheet thead { display: table-header-group; }
+  #a4sheet tr.cat td { background: #d9e2f3; font-weight: 700; height: 6mm; }
+}

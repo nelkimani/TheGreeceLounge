@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase, Profile } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import PrinterControl from './PrinterControl'
@@ -66,6 +66,19 @@ export default function PrintStockSheet({ onDone }: { profile: Profile; onDone: 
     window.print()
   }
 
+  // A4: the print window shows only the A4 table (see index.css, html[data-print="a4"]).
+  const printA4 = () => {
+    setMsg('')
+    const root = document.documentElement
+    const page = document.createElement('style')                     // the printer pages are 80mm wide; this one print is A4
+    page.textContent = '@page { size: A4; margin: 10mm }'
+    document.head.appendChild(page)
+    const done = () => { delete root.dataset.print; page.remove(); window.removeEventListener('afterprint', done) }
+    root.dataset.print = 'a4'
+    window.addEventListener('afterprint', done)
+    window.print()
+  }
+
   return (
     <div className="mx-auto max-w-4xl p-4 pb-16">
       <div className="mb-3 flex items-center gap-3">
@@ -98,7 +111,8 @@ export default function PrintStockSheet({ onDone }: { profile: Profile; onDone: 
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <Btn onClick={print} disabled={count === 0}>Print {count} drink{count === 1 ? '' : 's'}</Btn>
+              <Btn onClick={print} disabled={count === 0}>Print {count} drink{count === 1 ? '' : 's'} (80mm)</Btn>
+              <Btn kind="ghost" onClick={printA4} disabled={count === 0}>Print on A4</Btn>
               {msg && <span className="text-green-400">{msg}</span>}
             </div>
             <PrinterControl />
@@ -113,6 +127,27 @@ export default function PrintStockSheet({ onDone }: { profile: Profile; onDone: 
             </div>
           </div>
         </div>)}
+
+      {/* The A4 version of the sheet. Hidden on screen; only this is printed when "Print on A4" is pressed. */}
+      <div id="a4sheet" className="hidden bg-white text-black">
+        <h1 style={{ textAlign: 'center', fontSize: '18pt', fontWeight: 700, margin: 0 }}>THE GLIZZ LOUNGE — STOCK SHEET</h1>
+        <div style={{ fontSize: '10pt', margin: '3mm 0' }}>Counted by: ______________________ &nbsp;&nbsp; Checked by: ______________________</div>
+        <table>
+          <thead><tr><th style={{ width: '38%', textAlign: 'left' }}>Product</th><th>Price (KES)</th><th>Opening stock</th><th>Issued from store</th><th>Stock take<br />{data.dateLabel}</th></tr></thead>
+          <tbody>
+            {data.sections.map(sec => (
+              <Fragment key={sec.category}>
+                <tr className="cat"><td colSpan={5}>{sec.category.toUpperCase()}</td></tr>
+                {sec.items.map(it => (
+                  <tr key={sec.category + it.name}>
+                    <td style={{ textAlign: 'left' }}>{it.name}</td>
+                    <td style={{ textAlign: 'right' }}>{it.price == null ? '' : it.price.toLocaleString('en-KE')}</td>
+                    <td style={{ textAlign: 'center' }}>{it.opening == null ? '' : Math.round(it.opening * 1000) / 1000}</td><td></td><td></td>
+                  </tr>))}
+              </Fragment>))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
