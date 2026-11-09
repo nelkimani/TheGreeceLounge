@@ -21,7 +21,7 @@ type Check = {
 }
 
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
-const LOCS: [string, string][] = [['main_bar', 'Bar'], ['store', 'Store'], ['kitchen', 'Kitchen'], ['choma', 'Choma']]
+const LOCS: [string, string][] = [['store', 'Store'], ['main_bar', 'Counter (bar)'], ['kitchen', 'Kitchen'], ['choma', 'Choma']]
 const NEW = '__new__'
 const num = (n: number | undefined) => Number(n ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 3 })
 
@@ -34,7 +34,8 @@ export default function DeliveryUpload({ suppliers, products, categories, flash,
   const [supplier, setSupplier] = useState('')
   const [noteNo, setNoteNo] = useState('')
   const [note, setNote] = useState('')
-  const [location, setLocation] = useState('main_bar')
+  const [location, setLocation] = useState('store')
+  const [counted, setCounted] = useState(false)       // the goods were physically counted and match the invoice
   const [fileName, setFileName] = useState('')
   const [lines, setLines] = useState<Line[]>([])
   const [problems, setProblems] = useState<string[]>([])
@@ -79,7 +80,7 @@ export default function DeliveryUpload({ suppliers, products, categories, flash,
   const newCount = lines.filter(l => l.choice === NEW).length
   const units = lines.reduce((s, l) => s + l.qty, 0)
   const total = lines.reduce((s, l) => s + l.qty * l.cost, 0)
-  const ready = !!supplier && !!noteNo.trim() && lines.length > 0 && bad === 0 && problems.length === 0
+  const ready = !!supplier && !!noteNo.trim() && lines.length > 0 && bad === 0 && problems.length === 0 && counted
 
   const payload = () => lines.map(l => {
     const cat = l.choice === NEW ? categoryName(l.category) : ''
@@ -115,12 +116,12 @@ export default function DeliveryUpload({ suppliers, products, categories, flash,
     const done = res.data as Check
     if (!done.ok) { setErrors(done.errors ?? []); return }
     flash(`Delivery #${done.receipt_no} recorded: ${num(done.units)} units, ${kes(done.total ?? 0)}. ${num(done.new_drinks)} new drink(s) added, ${num(done.prices_changed)} selling price(s) changed.`)
-    reset(); setNoteNo(''); setNote(''); setSupplier(''); key.current = uid(); reload()
+    reset(); setNoteNo(''); setNote(''); setSupplier(''); setCounted(false); key.current = uid(); reload()
   }
 
   return (
     <div className="space-y-4">
-      <p className="text-slate-300">Upload the Excel delivery sheet (Item Name, Qty, Price paid, and the selling price if you have it). Every line is matched to a drink; check the matches, then record the delivery. A selling price on the sheet updates that drink's price.</p>
+      <p className="text-slate-300">Upload the Excel delivery sheet (Item Name, Qty, Price paid, and the selling price if you have it). Stock goes into the store first; issue it to the counter afterwards (Stock, then Issue to counter). Every line is matched to a drink; check the matches, then record the delivery. A selling price on the sheet updates that drink's price.</p>
       <div className="flex flex-wrap gap-3">
         <select className={input + ' w-72'} value={supplier} onChange={e => setSupplier(e.target.value)}>
           <option value="">Supplier…</option>{suppliers.map(s => <option key={s.supplier_id} value={s.supplier_id}>{s.name}</option>)}</select>
@@ -180,6 +181,8 @@ export default function DeliveryUpload({ suppliers, products, categories, flash,
               <div className="text-slate-300">{lines.length} lines · {num(units)} units{newCount > 0 ? ` · ${newCount} new drink(s)` : ''}{unsure > 0 ? ` · ${unsure} match(es) to check` : ''}</div>
               {bad > 0 && <div className="font-semibold text-red-300">{bad} line(s) need fixing before you can record.</div>}
               {(!supplier || !noteNo.trim()) && <div className="text-amber-300">Choose the supplier and type the delivery note number.</div>}
+              <label className="mt-2 flex items-start gap-2 text-lg"><input type="checkbox" className="mt-1 h-6 w-6 shrink-0" checked={counted} onChange={e => setCounted(e.target.checked)} />
+                <span>I counted the drinks received and the quantities match the invoice.</span></label>
             </div>
             <Btn onClick={submit} disabled={busy || !ready}>{busy ? 'Saving…' : 'Record delivery'}</Btn>
           </div>
