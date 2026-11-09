@@ -97,3 +97,7 @@ Last updated: 2 Nov 2026
 
 ## Later
 Phase 7 production readiness · UI polish pass
+
+## 9 Nov 2026 — waiter sales
+- "My sales" (waiters): own sales today / this week / this month, per-day list, what they sold most. Run 029.
+- "Waiter sales" (manager, accountant; needs report.sales): all waiters ranked, with what each sold most, per-day figures, CSV.
