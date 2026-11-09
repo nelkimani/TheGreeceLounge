@@ -20,7 +20,7 @@ export default function IssueToCounter({ onDone }: { profile: Profile; onDone: (
   const [qty, setQty] = useState<Record<string, string>>({})
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('')
-  const [all, setAll] = useState(false)
+  const [all, setAll] = useState(true)
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -100,7 +100,7 @@ export default function IssueToCounter({ onDone }: { profile: Profile; onDone: (
             <input className={input + ' w-full md:w-72'} placeholder="Search drinks" value={q} onChange={e => setQ(e.target.value)} />
             <select className={input + ' w-full md:w-52'} value={cat} onChange={e => setCat(e.target.value)}>
               <option value="">All categories</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
-            <label className="flex items-center gap-2 text-lg"><input type="checkbox" className="h-6 w-6" checked={all} onChange={e => setAll(e.target.checked)} /> Show drinks with nothing in the store</label>
+            <label className="flex items-center gap-2 text-lg"><input type="checkbox" className="h-6 w-6" checked={all} onChange={e => setAll(e.target.checked)} /> Show drinks with 0 in the store</label>
           </div>
           <div className="hidden grid-cols-[1fr_90px_90px_120px] gap-3 px-3 text-sm text-slate-400 md:grid"><span>Drink</span><span className="text-right">Store</span><span className="text-right">Counter</span><span>Issue</span></div>
           <div className="space-y-2">
