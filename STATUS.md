@@ -101,3 +101,4 @@ Phase 7 production readiness · UI polish pass
 ## 9 Nov 2026 — waiter sales
 - "My sales" (waiters): own sales today / this week / this month, per-day list, what they sold most. Run 029.
 - "Waiter sales" (manager, accountant; needs report.sales): all waiters ranked, with what each sold most, per-day figures, CSV.
+- **9 Nov 2026: go-live move (migration 030).** One-time: moves every drink's counter balance to the store (counter = 0). Then Issue to counter drink by drink. Run 030 once, before the first issue.
