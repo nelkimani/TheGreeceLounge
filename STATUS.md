@@ -102,3 +102,4 @@ Phase 7 production readiness · UI polish pass
 - "My sales" (waiters): own sales today / this week / this month, per-day list, what they sold most. Run 029.
 - "Waiter sales" (manager, accountant; needs report.sales): all waiters ranked, with what each sold most, per-day figures, CSV.
 - **9 Nov 2026: go-live move (migration 030).** One-time: moves every drink's counter balance to the store (counter = 0). Then Issue to counter drink by drink. Run 030 once, before the first issue.
+- **10 Nov 2026: restaurant + choma menu (migration 034).** Loads the GLIZZ Lounge Ndagani menu (79 items): kitchen items on the Kitchen station, Mbuzi choma on the Choma station; existing items with the same name (e.g. Mukimo) are updated, other old choma items are switched off.
