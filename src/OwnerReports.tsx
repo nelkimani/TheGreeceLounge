@@ -137,8 +137,23 @@ function Sales({ d }: { d: Data }) {
   const max = Math.max(1, ...days.map(r => n(r.net)))
   const prods: Row[] = d.by_product.map((r: Row) => ({ ...r, share: pct(n(r.gross), n(t.gross)) }))
   const adjKinds = Object.entries(t.adjustments_by_kind as Record<string, number>)
+  // Sales by department: Bar, Kitchen (restaurant), Choma zone; anything without a station is "Other".
+  const DEPTS: [string, string][] = [['bar', 'Bar'], ['kitchen', 'Kitchen (restaurant)'], ['choma', 'Choma zone'], ['none', 'Other']]
+  const depts: Row[] = DEPTS.map(([k, label]) => {
+    const ps = d.by_product.filter((r: Row) => String(r.station) === k)
+    const gross = ps.reduce((a: number, r: Row) => a + n(r.gross), 0)
+    const top = [...ps].sort((a: Row, b: Row) => n(b.gross) - n(a.gross))[0]
+    return { dept: label, key: k, items: ps.reduce((a: number, r: Row) => a + n(r.qty), 0), gross, share: pct(gross, n(t.gross)),
+             top: top ? `${top.product} (${kes(n(top.gross))})` : '—' }
+  }).filter(r => r.key !== 'none' || n(r.gross) > 0)
   return (
     <div className="space-y-4">
+      <div className="flex flex-wrap gap-3">
+        {depts.map(r => <Card key={String(r.key)} label={`${r.dept} sales`} value={kes(n(r.gross))} sub={`${r.share} of sales · ${num(r.items)} items`} />)}
+      </div>
+      <Table title="Sales by department" file="sales-by-department" rows={depts}
+        cols={[{ key: 'dept', label: 'Department' }, { key: 'items', label: 'Items sold', fmt: 'num' }, { key: 'gross', label: 'Sales', fmt: 'kes' }, { key: 'share', label: 'Share', fmt: 'pct' }, { key: 'top', label: 'Best seller' }]}
+        total={{ dept: 'Total', items: depts.reduce((a: number, r: Row) => a + n(r.items), 0), gross: t.gross }} />
       <div className="flex flex-wrap gap-3">
         <Card label="Net sales" value={kes(net)} sub={`${kes(t.gross)} before ${kes(t.adjustments)} adjustments`} />
         <Card label="Bills (tabs)" value={num(t.tabs)} sub={n(t.tabs) > 0 ? `${kes(n(t.gross) / n(t.tabs))} average per bill` : undefined} />
@@ -162,7 +177,7 @@ function Sales({ d }: { d: Data }) {
         cols={[{ key: 'product', label: 'Product' }, { key: 'category', label: 'Category' }, { key: 'qty', label: 'Qty sold', fmt: 'num' }, { key: 'gross', label: 'Sales', fmt: 'kes' }, { key: 'share', label: 'Share', fmt: 'pct' }]} />
       <Table title="By waiter" file="sales-by-waiter" rows={d.by_waiter}
         cols={[{ key: 'waiter', label: 'Waiter' }, { key: 'staff_no', label: 'ID' }, { key: 'tabs', label: 'Bills', fmt: 'num' }, { key: 'items', label: 'Items', fmt: 'num' }, { key: 'gross', label: 'Sales', fmt: 'kes' }, { key: 'adjustments', label: 'Adjustments on their bills', fmt: 'kes' }]} />
-      <div className="text-base text-slate-400">A sale counts on the trading day the item was served. Waiter figures are for the bills each waiter owns. Adjustments count on the day they were approved.</div>
+      <div className="text-base text-slate-400">A sale counts on the trading day the item was served. Department sales are before adjustments (an adjustment is not split by department). Waiter figures are for the bills each waiter owns. Adjustments count on the day they were approved.</div>
     </div>
   )
 }
