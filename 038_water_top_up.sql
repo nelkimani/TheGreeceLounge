@@ -1,13 +1,13 @@
--- The Glizz Lounge POS — 038: add 216 to Water 1L in the STORE (total 220)
+-- The Glizz Lounge POS — 038: add 216 to Water 1L in the STORE (total 240)
 -- Run in the Supabase SQL Editor ("Run without RLS" if asked).
--- It expects the store to hold 4 now (4 + 216 = 220). If the store holds something else it STOPS and tells you the
--- real figure, so you never end up with the wrong total. Safe to run again: once the total is 220 it does nothing.
+-- It expects the store to hold 24 now (24 + 216 = 240). If the store holds something else it STOPS and tells you the
+-- real figure, so you never end up with the wrong total. Safe to run again: once the total is 240 it does nothing.
 -- Booked as a stock count + 'count_adjust' movement by manager M001 (or the first manager).
 
 do $$
 declare
   v_staff uuid; v_store uuid := loc('store'); v_p products; v_c stock_counts; bal numeric;
-  v_add numeric := 216; v_expect numeric := 4; v_total numeric := 220; why text := 'Water 1L: 216 added (total 220)';
+  v_add numeric := 216; v_expect numeric := 24; v_total numeric := 240; why text := 'Water 1L: 216 added (total 240)';
 begin
   select id into v_staff from staff where staff_no = 'M001' and active;
   if v_staff is null then
