@@ -1,14 +1,15 @@
 -- The Glizz Lounge POS — 036: load the 10 Nov 2026 stock take (Main stock sheet) into the STORE
 -- Run in the Supabase SQL Editor ("Run without RLS" if asked). Run 035_reset_store_and_counter.sql FIRST (store must be 0).
 --
--- 149 drinks, 3638 units, read from the handwritten "Open:" column of the printed stock sheet (Main_stock_10112026.pdf).
+-- 151 drinks, 3713 units, read from the handwritten "Open:" column of the printed stock sheet (Main_stock_10112026.pdf).
 -- Each drink is matched to the drink already in the system by name (capitals, spaces and punctuation ignored) and gets an
 -- 'opening' stock movement into the STORE. Prices and categories are NOT changed. The counter stays at 0.
--- The only drink added if missing is "Chrome Gin 250ml" (written by hand on the sheet): it is added WITHOUT a selling price.
+-- The only drinks added if missing are "Chrome Gin 250ml" (written by hand on the sheet) and "Liberty 250ml" (the sheet
+-- says 750ml, you confirmed it is 250ml): they are added WITHOUT a selling price (Liberty takes the category of Liberty 750ml).
 -- A drink whose store is not at 0 is skipped and listed (run 035 first); a drink that cannot be found is listed too.
 --
--- NOT loaded on purpose (crossed out, blank or unreadable on the sheet): Tusker 500ml, T. Malt Can, Hennesy (crossed out),
--- Hennessy 1LT (blank), Southern Comfort 70cl (unreadable), Liberty 750ml (a hand note says 250ml: confirm size and count).
+-- NOT loaded on purpose (crossed out or blank on the sheet): Tusker 500ml, T. Malt Can, Hennesy (crossed out), Hennessy 1LT (blank).
+-- Southern Comfort is loaded onto the system drink "Southern Comfort 70cl" (you said 750ml: rename it in Products if needed).
 --
 -- TWO STEPS (nothing is changed on the first): run as it is to CHECK; change  v_dry boolean := true  to  false  to RECORD.
 -- Safe to run again: a drink already loaded is skipped.
@@ -62,13 +63,13 @@ begin
       ('Whitecap Can', 24),
       ('Whitecap Lager', 120),
       ('Hunters Choice 250ml', 24),
-      ('Hunters Choice 350ml', 24),
-      ('Hunters Choice 750ml', 36),
+      ('Hunters Choice 350ml', 36),
+      ('Hunters Choice 750ml', 60),
       ('Richot 250ml', 40),
       ('Richot 750ml', 12),
       ('Viceroy Brandy 250ml', 24),
       ('Viceroy Brandy 375ml', 24),
-      ('Viceroy Brandy 750ML', 36),
+      ('Viceroy Brandy 750ML', 60),
       ('Hennessy VS 700ml', 2),
       ('Hennessy VSOP 750ML', 2),
       ('Martell VS 1L', 2),
@@ -91,7 +92,7 @@ begin
       ('Amarula Cream 750ml', 2),
       ('Astral Blanco 750ml', 3),
       ('Baileys 1L', 3),
-      ('Baileys Irish Cream 750ML', 2),
+      ('Baileys Irish Cream 750ML', 5),
       ('Camino Tequila 750ml', 3),
       ('Casamigos Blanco 750ml', 2),
       ('Don Julio Blanco 750ml', 3),
@@ -178,17 +179,25 @@ begin
       ('Orijin 250ml', 40),
       ('Orijin 750ml', 12),
       ('Triple Ace 250ml', 40),
-      ('Triple Ace 750ml', 12)
+      ('Triple Ace 750ml', 12),
+      ('Southern Comfort 70cl', 2),
+      ('Liberty 250ml', 10)
     ) as t(name, qty)
   loop
     select * into v_p from products where active and regexp_replace(lower(name), '[^a-z0-9]', '', 'g') = regexp_replace(lower(r.name), '[^a-z0-9]', '', 'g')
      order by created_at limit 1;
     if not found then
-      if r.name = 'Chrome Gin 250ml' then
+      if r.name in ('Chrome Gin 250ml', 'Liberty 250ml') then
         if v_dry then raise notice 'ADD NEW   : % (no selling price)', r.name; n_new := n_new + 1;
         else
-          select id into v_cat from categories where name = 'Gin';
-          if v_cat is null then insert into categories(name) values ('Gin') returning id into v_cat; end if;
+          if r.name = 'Liberty 250ml' then
+            select category_id into v_cat from products where active and regexp_replace(lower(name), '[^a-z0-9]', '', 'g') = 'liberty750ml' limit 1;
+            if v_cat is null then select id into v_cat from categories where name = 'Spirits'; end if;
+            if v_cat is null then insert into categories(name) values ('Spirits') returning id into v_cat; end if;
+          else
+            select id into v_cat from categories where name = 'Gin';
+            if v_cat is null then insert into categories(name) values ('Gin') returning id into v_cat; end if;
+          end if;
           v_base := 'GL-' || trim(both '-' from regexp_replace(upper(r.name), '[^A-Z0-9]+', '-', 'g'));
           v_sku := v_base; i := 1;
           while exists (select 1 from products where sku = v_sku) loop i := i + 1; v_sku := v_base || '-' || i; end loop;
