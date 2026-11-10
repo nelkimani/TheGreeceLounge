@@ -1,14 +1,14 @@
 -- The Glizz Lounge POS — 036: load the 10 Nov 2026 stock take (Main stock sheet) into the STORE
 -- Run in the Supabase SQL Editor ("Run without RLS" if asked). Run 035_reset_store_and_counter.sql FIRST (store must be 0).
 --
--- 151 drinks, 3713 units, read from the handwritten "Open:" column of the printed stock sheet (Main_stock_10112026.pdf).
+-- 151 drinks, 3797 units, read from the handwritten "Open:" column of the printed stock sheet (Main_stock_10112026.pdf).
 -- Each drink is matched to the drink already in the system by name (capitals, spaces and punctuation ignored) and gets an
 -- 'opening' stock movement into the STORE. Prices and categories are NOT changed. The counter stays at 0.
 -- The only drinks added if missing are "Chrome Gin 250ml" (written by hand on the sheet) and "Liberty 250ml" (the sheet
 -- says 750ml, you confirmed it is 250ml): they are added WITHOUT a selling price (Liberty takes the category of Liberty 750ml).
 -- A drink whose store is not at 0 is skipped and listed (run 035 first); a drink that cannot be found is listed too.
 --
--- NOT loaded on purpose (crossed out or blank on the sheet): Tusker 500ml, T. Malt Can, Hennesy (crossed out), Hennessy 1LT (blank).
+-- T. Malt Can is DELETED (switched off). NOT loaded on purpose (crossed out or blank on the sheet): Tusker 500ml, Hennesy (crossed out), Hennessy 1LT (blank).
 -- Southern Comfort is loaded onto the system drink "Southern Comfort 70cl" (you said 750ml: rename it in Products if needed).
 --
 -- TWO STEPS (nothing is changed on the first): run as it is to CHECK; change  v_dry boolean := true  to  false  to RECORD.
@@ -31,7 +31,7 @@ begin
 
   for r in
     select * from (values
-      ('Balozi 250', 12),
+      ('Balozi 250', 72),
       ('Balozi Can', 24),
       ('Guarana Can', 48),
       ('Guinness Can', 24),
@@ -47,7 +47,7 @@ begin
       ('Pilsner Mfalme', 24),
       ('Pineapple Punch', 72),
       ('Punch Can', 48),
-      ('Savannah Cider', 24),
+      ('Savannah Cider', 48),
       ('Smirnoff Black Ice', 48),
       ('Smirnoff Raspberry 300ml Bottle', 50),
       ('Smirnoff Raspberry Can', 48),
@@ -221,6 +221,15 @@ begin
     end if;
     n_ok := n_ok + 1; units := units + r.qty;
   end loop;
+
+  -- "Delete T Malt": the drink "T. Malt Can" is switched off (hidden everywhere; a product with history cannot be erased).
+  if not v_dry then
+    update products set active = false where active and regexp_replace(lower(name), '[^a-z0-9]', '', 'g') = 'tmaltcan';
+    if found then raise notice 'T. Malt Can switched off (deleted from the lists).'; end if;
+  else
+    if exists (select 1 from products where active and regexp_replace(lower(name), '[^a-z0-9]', '', 'g') = 'tmaltcan') then
+      raise notice 'T. Malt Can will be switched off (deleted from the lists).'; end if;
+  end if;
 
   if not v_dry then
     perform write_audit('stock.stocktake_load', 'stock_movements', null, null,
