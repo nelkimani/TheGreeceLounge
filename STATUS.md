@@ -1,6 +1,6 @@
 # The Glizz Lounge POS — Project status
 
-Last updated: 2 Nov 2026
+Last updated: 11 Nov 2026
 
 ## Where we are
 - Phases 0 to 6 built (foundation, ordering, stock, reconciliation, purchasing, owner reports).
@@ -12,6 +12,8 @@ Last updated: 2 Nov 2026
 - **7 Nov 2026: Bluetooth printing (58mm P58E).** Print screen: Connect Bluetooth printer (Chrome on Android) or Print with RawBT app. Slips use 32 columns on 58mm. Not tested on a real printer yet. See TERMINAL_SETUP.md.
 - **8 Nov 2026: Print stock sheet (managers).** Stock > Print stock sheet: pick the date and which categories, optionally fill Opening stock from the system, and print the handwritten sheet (name, price, blanks for Opening / Issued / Count) on the 80mm USB printer. Without a connected printer it opens the print window. No SQL.
 - **9 Nov 2026: store -> counter (migration 028).** Deliveries are received into the Store (count checked against the invoice). Stock > Issue to counter moves stock to the counter that waiters sell from; shows store and counter quantities side by side, flags COUNTER LOW, keeps a history. Run 028.
+- **11 Nov 2026: managers-only void (migration 035 + app).** Waiters no longer have a Void button; `request_void` needs `approval.grant`. Requests already sent stay in Approvals.
+- **11 Nov 2026: Bookkeeping screen (migration 037 + app).** Reports > Bookkeeping (permission `report.profit`): worth of all stock bought, remaining stock at cost and at selling price, profit to expect, lost/other, per-drink table with category filter, search and CSV; plus profit and loss for any period using the same `report_profit` as Owner reports. Run 037 first. Cost is the latest delivery price, so drinks with no cost or price are flagged.
 - Next: run 024 and 025, then 022 and 023 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
 
 ## How a sale works now
@@ -72,6 +74,8 @@ Last updated: 2 Nov 2026
 | 025_categorise_drinks.sql | NOT run yet | Moves each drink into its stock-list category (names on the list only; nothing else changes). Run after 024. Safe to re-run |
 | 024_delivery_sheet_upload.sql | NOT run yet | `receive_delivery_sheet`: records a supplier delivery from Excel (stock + cost, new drinks, selling prices). Run after 023. Safe to re-run |
 | 023_stock_sheet_import.sql | NOT run yet | Stock sheet upload: `stock.import` permission and `import_stock_sheet` (adds drinks, loads opening stock once). Run after 022. Safe to re-run |
+| 035_managers_only_void.sql | NOT run yet | `request_void` now requires manager permission (`approval.grant`); waiters can no longer void |
+| 037_bookkeeping_report.sql | NOT run yet | `report_bookkeeping()`: read-only stock worth, remaining, expected profit per drink for the Bookkeeping screen. Needs 016 and 022 |
 
 ## App (repo root)
 - Office login and terminal PIN login; home shows only the buttons each role may use

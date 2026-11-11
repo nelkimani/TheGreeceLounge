@@ -4,20 +4,20 @@ import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
 
 type Tab = 'sales' | 'log' | 'profit' | 'stock' | 'cash'
-type Row = Record<string, string | number | null>
-type Col = { key: string; label: string; fmt?: 'kes' | 'num' | 'pct' | 'text'; wide?: boolean }
+export type Row = Record<string, string | number | null>
+export type Col = { key: string; label: string; fmt?: 'kes' | 'num' | 'pct' | 'text'; wide?: boolean }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Data = any
 
-const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
+export const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 // The trading day rolls over at 05:00 Nairobi (UTC+3), which is 02:00 UTC.
-const today = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 10)
-const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400_000).toISOString().slice(0, 10)
-const monthStart = (d: string) => d.slice(0, 8) + '01'
-const weekStart = (d: string) => addDays(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7))   // Monday
-const num = (n: unknown) => Number(n ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 3 })
-const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—')
-const n = (v: unknown) => Number(v ?? 0)
+export const today = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 10)
+export const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400_000).toISOString().slice(0, 10)
+export const monthStart = (d: string) => d.slice(0, 8) + '01'
+export const weekStart = (d: string) => addDays(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7))   // Monday
+export const num = (n: unknown) => Number(n ?? 0).toLocaleString('en-KE', { maximumFractionDigits: 3 })
+export const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1)}%` : '—')
+export const n = (v: unknown) => Number(v ?? 0)
 const LOC: Record<string, string> = { main_bar: 'Bar', store: 'Store', kitchen: 'Kitchen', choma: 'Choma', waiter: 'With waiters' }
 const LOSS: Record<string, string> = { wastage: 'Wastage', breakage: 'Breakage', complimentary: 'Complimentary (free)', staff_meal: 'Staff meal', count_difference: 'Stock count difference' }
 const ADJ: Record<string, string> = { discount: 'Discounts', void: 'Voids', complimentary: 'Complimentary', refund: 'Refunds' }
@@ -32,7 +32,7 @@ function csv(name: string, cols: Col[], rows: Row[]) {
   const a = document.createElement('a'); a.href = url; a.download = name + '.csv'; a.click(); URL.revokeObjectURL(url)
 }
 
-function Table({ title, cols, rows, file, total, empty = 'Nothing for this period.' }:
+export function Table({ title, cols, rows, file, total, empty = 'Nothing for this period.' }:
   { title: string; cols: Col[]; rows: Row[]; file: string; total?: Row; empty?: string }) {
   return (
     <div className="rounded-xl bg-slate-800 p-4">
@@ -61,14 +61,14 @@ function Table({ title, cols, rows, file, total, empty = 'Nothing for this perio
   )
 }
 
-const Card = ({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'bad' | 'good' | 'warn' }) => (
+export const Card = ({ label, value, sub, tone }: { label: string; value: string; sub?: string; tone?: 'bad' | 'good' | 'warn' }) => (
   <div className="min-w-[200px] flex-1 rounded-xl bg-slate-800 p-4">
     <div className="text-base text-slate-300">{label}</div>
     <div className={`text-3xl font-bold tabular-nums ${tone === 'bad' ? 'text-red-400' : tone === 'good' ? 'text-green-400' : tone === 'warn' ? 'text-amber-300' : ''}`}>{value}</div>
     {sub && <div className="text-base text-slate-400">{sub}</div>}
   </div>)
 
-const Warn = ({ children }: { children: ReactNode }) => (
+export const Warn = ({ children }: { children: ReactNode }) => (
   <div className="rounded-xl border border-amber-500 bg-amber-950/60 p-3 text-lg text-amber-200">{children}</div>)
 
 export default function OwnerReports({ profile, onDone }: { profile: Profile; onDone: () => void }) {
