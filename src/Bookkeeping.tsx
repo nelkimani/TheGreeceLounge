@@ -16,6 +16,10 @@ const STOCK_COLS: Col[] = [
   { key: 'remaining_sell', label: 'Left at selling price', fmt: 'kes' }, { key: 'profit_remaining', label: 'Profit on what is left', fmt: 'kes' },
   { key: 'expected_total_profit', label: 'Profit if all bought sells', fmt: 'kes' },
 ]
+const SOLD_COLS: Col[] = [
+  { key: 'product', label: 'Drink' }, { key: 'qty_sold', label: 'Sold', fmt: 'num' }, { key: 'unit_cost', label: 'Cost each', fmt: 'kes' },
+  { key: 'sales', label: 'Sales', fmt: 'kes' }, { key: 'cost', label: 'Cost', fmt: 'kes' }, { key: 'profit', label: 'Profit', fmt: 'kes' },
+]
 const sum = (rows: Row[], k: string) => rows.reduce((t, r) => t + n(r[k]), 0)
 
 // Bookkeeping: what all the stock bought is worth, what is left, and the profit to expect (all time, as at today),
@@ -52,11 +56,22 @@ export default function Bookkeeping({ onDone }: { profile: Profile; onDone: () =
   }, [start, end])
   useEffect(() => { loadPl() }, [loadPl])
 
-  const rows: Row[] = book?.rows ?? []
+  const allRows: Row[] = book?.rows ?? []
+  // Only drinks that really have stock: anything at 0 or below is left out of the stock figures.
+  const rows: Row[] = useMemo(() => allRows.filter(r => n(r.remaining) > 0), [allRows])
+  const negNames = useMemo(() => new Set(allRows.filter(r => n(r.remaining) < 0).map(r => String(r.product))), [allRows])
   const cats = useMemo(() => ['All', ...Array.from(new Set(rows.map(r => String(r.category))))], [rows])
   const shown = useMemo(() => rows.filter(r =>
     (cat === 'All' || r.category === cat) && String(r.product).toLowerCase().includes(q.trim().toLowerCase())), [rows, cat, q])
   const t = book?.totals
+  const stockCost = sum(rows, 'remaining_cost'), stockSell = sum(rows, 'remaining_sell'), stockUnits = sum(rows, 'remaining')
+
+  // Drinks sold in the chosen dates, from the profit report's bar lines. Left out: nothing sold, and drinks whose stock is now negative.
+  const soldRows: Row[] = useMemo(() => (pl?.bar_rows ?? [])
+    .filter((r: Row) => n(r.qty_sold) > 0 && n(r.sales) > 0 && !negNames.has(String(r.product)))
+    .map((r: Row) => ({ ...r, profit: r.cost == null ? null : n(r.sales) - n(r.cost) })), [pl, negNames])
+  const soldSales = sum(soldRows, 'sales'), soldCost = sum(soldRows, 'cost'), soldProfit = soldSales - soldCost
+  const soldExcluded = (pl?.bar_rows ?? []).filter((r: Row) => negNames.has(String(r.product)) && n(r.sales) > 0).map((r: Row) => String(r.product))
 
   const t0 = today()
   const presets: [string, string, string][] = [
@@ -81,12 +96,44 @@ export default function Bookkeeping({ onDone }: { profile: Profile; onDone: () =
 
       {book && t && (<>
         <div>
+          <div className="mb-2 text-2xl font-bold">Key numbers <span className="text-base font-normal text-slate-400">drinks only; drinks at 0 or negative stock are left out</span></div>
+          <div className="mb-2 text-lg font-semibold text-slate-300">Stock in the system now</div>
+          <div className="flex flex-wrap gap-3">
+            <Card label="Total cost of all drinks in the system" value={kes(stockCost)} sub={`${num(stockUnits)} units in ${rows.length} drinks, at cost`} />
+            <Card label="Total sales value of drinks in the system" value={kes(stockSell)} sub="all of it sold at today's selling prices" />
+            <Card label="Expected sales from this stock" value={kes(stockSell)} sub="what we expect to take in when it is sold" tone="good" />
+            <Card label="Expected profit on this stock" value={kes(stockSell - stockCost)} sub="selling value − cost" tone={stockSell - stockCost < 0 ? 'bad' : 'good'} />
+          </div>
+          <div className="mb-2 mt-4 text-lg font-semibold text-slate-300">Drinks sold, {start} to {end}</div>
+          {plErr && <div className="rounded-lg bg-red-700 p-3 text-lg font-semibold">{plErr}</div>}
+          {!pl && !plErr && <div className="text-xl text-slate-400">Loading…</div>}
+          {pl && <div className="flex flex-wrap gap-3">
+            <Card label="Total sales of goods sold" value={kes(soldSales)} sub={`${soldRows.length} drinks, before discounts`} />
+            <Card label="Total cost of goods sold" value={kes(soldCost)} sub="units sold × cost price" />
+            <Card label="Profit realised" value={kes(soldProfit)} sub="sales − cost" tone={soldProfit < 0 ? 'bad' : 'good'} />
+            <Card label="Sold + still expected" value={kes(soldSales + stockSell)} sub="sales in these dates + stock still to sell" />
+          </div>}
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-slate-800 p-3">
+            <div className="mr-auto text-lg font-semibold">Choose the dates</div>
+            {presets.map(([l, a, b]) => (
+              <button key={l} onClick={() => { setStart(a); setEnd(b) }}
+                className={`h-12 rounded-lg px-4 text-lg font-semibold ${start === a && end === b ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{l}</button>))}
+            <span className="text-lg">From</span><input type="date" className={input} value={start} onChange={e => setStart(e.target.value)} />
+            <span className="text-lg">to</span><input type="date" className={input} value={end} onChange={e => setEnd(e.target.value)} />
+          </div>
+          {soldExcluded.length > 0 && <div className="mt-2"><Warn><b>Left out of the sold figures (stock is negative)</b>: {soldExcluded.join(', ')}.</Warn></div>}
+          {pl && <div className="mt-3 rounded-xl bg-slate-800 p-3"><Table title="Drinks sold in these dates" file={`bookkeeping-sold-${start}-${end}`} rows={soldRows} cols={SOLD_COLS}
+            empty="No drinks sold in these dates."
+            total={soldRows.length ? { product: `${soldRows.length} drinks`, qty_sold: sum(soldRows, 'qty_sold'), sales: soldSales, cost: soldCost, profit: soldProfit } : undefined} /></div>}
+        </div>
+
+        <div>
           <div className="mb-2 text-2xl font-bold">Stock position <span className="text-base font-normal text-slate-400">all time, as at {book.as_at}</span></div>
           <div className="flex flex-wrap gap-3">
             <Card label="Worth of all stock bought" value={kes(t.worth_bought)} sub={`${num(t.bought)} units, opening stock and deliveries, at cost`} />
-            <Card label="Remaining stock" value={kes(t.remaining_cost)} sub={`${num(t.remaining)} units on hand, at cost`} />
-            <Card label="Remaining at selling price" value={kes(t.remaining_sell)} sub="what it brings in if all sold at today's prices" />
-            <Card label="Profit to expect on what is left" value={kes(t.profit_remaining)} sub={`${pct(n(t.profit_remaining), n(t.remaining_sell))} of its selling price`} tone={n(t.profit_remaining) < 0 ? 'bad' : 'good'} />
+            <Card label="Remaining stock" value={kes(stockCost)} sub={`${num(stockUnits)} units on hand, at cost`} />
+            <Card label="Remaining at selling price" value={kes(stockSell)} sub="what it brings in if all sold at today's prices" />
+            <Card label="Profit to expect on what is left" value={kes(sum(rows, 'profit_remaining'))} sub={`${pct(sum(rows, 'profit_remaining'), stockSell)} of its selling price`} tone={sum(rows, 'profit_remaining') < 0 ? 'bad' : 'good'} />
           </div>
           <div className="mt-3 flex flex-wrap gap-3">
             <Card label="Profit if all stock bought sells" value={kes(t.expected_total_profit)} sub="units bought × (price − cost)" tone={n(t.expected_total_profit) < 0 ? 'bad' : undefined} />
@@ -107,7 +154,7 @@ export default function Bookkeeping({ onDone }: { profile: Profile; onDone: () =
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a drink" aria-label="Search a drink" className={`${input} ml-auto w-56`} />
           </div>
           <Table title={`Stock by drink${cat === 'All' ? '' : ' · ' + cat}`} file={`bookkeeping-stock-${book.as_at}`} rows={shown} cols={STOCK_COLS}
-            empty="No stock is recorded yet."
+            empty="No drinks with stock."
             total={shown.length ? {
               category: 'Total', product: `${shown.length} drinks`, bought: sum(shown, 'bought'), sold: sum(shown, 'sold'), remaining: sum(shown, 'remaining'),
               other: sum(shown, 'other'), worth_bought: sum(shown, 'worth_bought'), remaining_cost: sum(shown, 'remaining_cost'),
