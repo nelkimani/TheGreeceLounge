@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { supabase, Profile } from './supabase'
+import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
 import { toast } from './feedback'
@@ -24,8 +24,10 @@ const toSale = (o: Order, slips: Row[], markVoid = false): Sale => ({
   slips: slips.map(s => ({ id: s.captain_order_id, slip_no: s.slip_no, station: s.station, lines: s.lines ?? [], voided: markVoid || !!s.voided_at })),
 })
 
-// Today's orders. Reprint the receipt and captain orders, ask for a void, or print the VOID slip once a manager approves.
+// Today's orders. Reprint the receipt and captain orders, or print the VOID slip once a manager has voided a slip.
+// Only a manager (approval.grant) can void; waiters have no Void button (migration 035 enforces it in the database too).
 export default function MyOrders({ profile, onDone }: { profile: Profile; onDone: () => void }) {
+  const canVoid = can(profile, 'approval.grant')
   const [orders, setOrders] = useState<Order[]>([])
   const [view, setView] = useState<{ sale: Sale; hideReceipt: boolean } | null>(null)
   const [voidFor, setVoidFor] = useState<Row | null>(null)
@@ -51,7 +53,7 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
     const { data, error } = await supabase.rpc('request_void', { p_captain: voidFor.captain_order_id, p_reason: reason.trim(), p_key: key.current })
     setBusy(false)
     if (error) { toast(error.message, 'error'); return }
-    toast((data as { status: string }).status === 'approved' ? 'Voided. Print the VOID slip for the station.' : 'Void sent to the manager.')
+    toast((data as { status: string }).status === 'approved' ? 'Voided. Print the VOID slip for the station.' : 'Void request recorded.')
     setVoidFor(null); setReason(''); key.current = uid(); load()
   }
 
@@ -88,7 +90,7 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
                       ? <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, [s], true), hideReceipt: true })}>Print VOID slip</Btn>
                       : <>
                           <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, [s]), hideReceipt: true })}>Reprint slip</Btn>
-                          {!s.void_pending && <Btn kind="danger" className="!h-12 !text-base" onClick={() => { setVoidFor(s); setReason('') }}>Void</Btn>}
+                          {canVoid && !s.void_pending && <Btn kind="danger" className="!h-12 !text-base" onClick={() => { setVoidFor(s); setReason('') }}>Void</Btn>}
                         </>}
                   </div>
                 ))}
@@ -99,7 +101,7 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
         })}
       </div>
 
-      {voidFor && (
+      {canVoid && voidFor && (
         <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/60 p-4 pt-6" role="dialog" aria-modal="true" aria-label="Void order">
           <div className="flex w-[min(40rem,96vw)] flex-col gap-3 rounded-2xl bg-slate-800 p-5">
             <h2 className="text-2xl font-bold">Void {STATION_LABEL[voidFor.station]} slip #{voidFor.slip_no}?</h2>
@@ -111,10 +113,10 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
             </div>
             <input value={reason} maxLength={120} onChange={e => setReason(e.target.value)} placeholder="Reason (required)" aria-label="Reason"
               className="h-[3.25rem] rounded-xl border-2 border-slate-600 bg-slate-900 px-3 text-xl" />
-            <div className="text-base text-slate-400">A manager must approve. When approved, the stock goes back and you print a VOID slip for the station.</div>
+            <div className="text-base text-slate-400">The void applies at once and is logged. The stock goes back; print the VOID slip for the station.</div>
             <div className="flex gap-3">
               <Btn kind="ghost" className="flex-1" onClick={() => setVoidFor(null)}>Cancel</Btn>
-              <Btn kind="danger" className="flex-1" onClick={sendVoid} disabled={busy || !reason.trim()}>{busy ? 'Sending…' : 'Ask to void'}</Btn>
+              <Btn kind="danger" className="flex-1" onClick={sendVoid} disabled={busy || !reason.trim()}>{busy ? 'Voiding…' : 'Void slip'}</Btn>
             </div>
           </div>
         </div>
