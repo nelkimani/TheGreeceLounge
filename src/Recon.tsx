@@ -3,6 +3,7 @@ import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
 import { STATION_LABEL, Station } from './sale'
+import { buildDaySummaryHtml, printHtml, downloadDaySummaryCsv } from './daySummary'
 
 type Tab = 'waiters' | 'slips' | 'close'
 type Slip = {
@@ -119,6 +120,12 @@ function Waiters({ date, profile, flash }: P) {
         {card('Waiters still to clear', String(toClear), toClear > 0 ? 'text-amber-300' : 'text-green-400')}
       </div>
       {locked && <div className="rounded-lg bg-green-800 p-3 text-lg font-semibold">This day is approved and locked. Nothing can be changed.</div>}
+      {active.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-800 p-3">
+          <div className="mr-auto text-lg text-slate-300">{toClear > 0 ? `${toClear} waiter${toClear === 1 ? '' : 's'} not cleared yet. ` : 'All waiters cleared. '}Summary for filing:</div>
+          <Btn className="!h-12" onClick={() => printHtml(buildDaySummaryHtml(date, rows, profile.full_name))}>Print / save as PDF</Btn>
+          <Btn kind="ghost" className="!h-12" onClick={() => downloadDaySummaryCsv(date, rows)}>Download for Excel</Btn>
+        </div>)}
       {active.length === 0 && <div className="text-xl text-slate-400">No sales for this day.</div>}
 
       {active.map(w => {
