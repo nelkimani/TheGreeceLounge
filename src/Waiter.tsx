@@ -19,6 +19,14 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
   const [sale, setSale] = useState<Sale | null>(null)
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
+  // How many of each bar drink are on the counter now. Only used to warn: a sale is never blocked. Unknown (offline) = no warning.
+  const [counter, setCounter] = useState<Map<string, number> | null>(null)
+  const loadCounter = useCallback(async () => {
+    const { data, error } = await supabase.rpc('counter_stock')
+    if (!error && data) setCounter(new Map((data as { product_id: string; on_hand: number }[]).map(r => [r.product_id, Number(r.on_hand)])))
+  }, [])
+  useEffect(() => { loadCounter() }, [loadCounter, target, sale])
+  useEffect(() => { const t = setInterval(loadCounter, 60_000); return () => clearInterval(t) }, [loadCounter])
 
   const load = useCallback(async () => {
     const [t, p] = await Promise.all([
@@ -61,7 +69,7 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
     return <SaleDone sale={sale} onDone={() => { setSale(null); setTarget(null); if (LOCK_AFTER_SEND) onLock(); else onDone() }} />
   }
   if (target) {
-    return <OrderScreen profile={profile} target={target} products={products}
+    return <OrderScreen profile={profile} target={target} products={products} counter={counter}
       onBack={() => setTarget(null)} onSent={s => setSale(s)} onSavedOffline={() => { setTarget(null); LOCK_AFTER_SEND ? onLock() : onDone() }} />
   }
 
@@ -103,8 +111,8 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
   )
 }
 
-function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline }:
-  { profile: Profile; target: Target; products: Product[]; onBack: () => void; onSent: (s: Sale) => void; onSavedOffline: () => void }) {
+function OrderScreen({ profile, target, products, counter, onBack, onSent, onSavedOffline }:
+  { profile: Profile; target: Target; products: Product[]; counter: Map<string, number> | null; onBack: () => void; onSent: (s: Sale) => void; onSavedOffline: () => void }) {
   const initial = useMemo(() => loadDraft(profile.id, target.draftKey), [profile.id, target.draftKey])
   const [lines, setLines] = useState<CartLine[]>(initial?.lines ?? [])
   const [state, setState] = useState<Draft['state']>(initial?.state ?? 'editing')
@@ -127,6 +135,9 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
     : cat === MINE ? topIds.map(id => products.find(p => p.id === id)!)
     : products.filter(p => cat === 'All' || (p.category?.name ?? 'Other') === cat)
   const inCart = new Map(lines.map(l => [l.product_id, l.qty]))
+  const onCounter = (id: string) => counter?.get(id)              // undefined = not a counted drink, or stock unknown
+  const shortLines = lines.filter(l => { const h = onCounter(l.product_id); return h !== undefined && l.qty > Math.max(0, h) })
+  const shortText = (l: CartLine) => { const h = Math.max(0, onCounter(l.product_id) ?? 0); return h === 0 ? 'None on the counter' : `Only ${h} on the counter` }
   const count = lines.reduce((s, l) => s + l.qty, 0)
   const total = lines.reduce((s, l) => s + l.price * l.qty, 0)
   // Which captain orders this order will print
@@ -161,6 +172,9 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
 
   const send = async () => {
     if (sending || lines.length === 0) return          // in-flight lock: double taps do nothing
+    if (shortLines.length > 0 && !await confirmDialog({ title: 'Not enough on the counter',
+      message: shortLines.map(l => `${l.name} × ${l.qty}: ${shortText(l).toLowerCase()}`).join('\n') + '\n\nCheck with the manager. Send anyway?',
+      confirmText: 'Send anyway', danger: true })) return
     setSending(true); setErr('')
     const { data, error } = await supabase.rpc('submit_sale', {
       p_table: target.table?.id ?? null, p_customer: target.customer,
@@ -216,6 +230,8 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
                 className={`relative rounded-xl bg-slate-700 p-2 text-left transition-transform active:scale-[0.97] active:bg-slate-500 ${n ? 'ring-2 ring-amber-500' : ''}`}>
                 <div className="line-clamp-2 pr-6 text-lg font-semibold leading-tight">{p.name}</div>
                 <div className="text-amber-400">{kes(p.selling_price)}</div>
+                {(() => { const h = onCounter(p.id); return h !== undefined && h <= 0
+                  ? <div className="mt-0.5 inline-block rounded bg-red-700 px-1.5 text-sm font-semibold text-white">None on counter</div> : null })()}
                 {n > 0 && <span className="absolute right-1.5 top-1.5 flex h-7 min-w-[1.75rem] items-center justify-center rounded-full bg-amber-500 px-1.5 text-sm font-bold text-on-accent">{n}</span>}
               </button>
             )
@@ -249,6 +265,7 @@ function OrderScreen({ profile, target, products, onBack, onSent, onSavedOffline
                 <div className="shrink-0 text-lg font-semibold">{kes(l.price * l.qty)}</div>
               </div>
               <div className="text-sm text-slate-400">{kes(l.price)} each</div>
+              {shortLines.includes(l) && <div className="mt-1 rounded bg-red-800 px-2 py-1 text-base font-semibold text-white">{shortText(l)}. Check with the manager.</div>}
               {l.notes && <div className="mt-1 rounded bg-amber-950 px-2 py-1 text-base text-amber-300">{l.notes}</div>}
               <div className="mt-2 flex items-center gap-1.5">
                 <button aria-label={`Less ${l.name}`} className="h-12 w-12 rounded-lg bg-slate-600 text-3xl" onClick={() => step(l.product_id, -1)}>−</button>
