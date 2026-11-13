@@ -66,7 +66,7 @@ const Shell = ({ title, message, children, onEscape }: { title: string; message?
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label={title}>
       <div className="flex w-[min(34rem,94vw)] flex-col gap-4 rounded-2xl bg-slate-800 p-6">
         <h2 className="text-2xl font-bold">{title}</h2>
-        {message && <p className="text-lg text-slate-300">{message}</p>}
+        {message && <p className="whitespace-pre-line text-lg text-slate-300">{message}</p>}
         {children}
       </div>
     </div>
