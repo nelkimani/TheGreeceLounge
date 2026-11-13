@@ -1,7 +1,7 @@
 import { Profile, can } from './supabase'
 import type { IconName } from './icons'
 
-export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'issue' | 'printsheet' | 'mysales' | 'waitersales' | 'bookkeeping'
+export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'issue' | 'printsheet' | 'mysales' | 'waitersales' | 'bookkeeping' | 'trends'
 
 // The office sidebar groups screens by job. Terminals ignore groups and use `kind` for the tile home.
 export type Group = 'sales' | 'stock' | 'money' | 'reports' | 'admin'
@@ -50,6 +50,7 @@ export function navItems(profile: Profile): NavItem[] {
     item('reports', 'reports', 'Reports & sign-off', 'reports', 'manage', can(profile, 'report.view') || can(profile, 'report.build')),
     item('waitersales', 'reports', 'Waiter sales', 'reports', 'manage', can(profile, 'report.sales')),
     item('bookkeeping', 'owner', 'Bookkeeping', 'reports', 'manage', can(profile, 'report.profit')),
+    item('trends', 'reports', 'Trends', 'reports', 'manage', can(profile, 'report.profit') || can(profile, 'recon.view_all')),
     item('owner', 'owner', 'Owner reports', 'reports', 'manage', can(profile, 'report.sales') || can(profile, 'report.profit')),
     item('products', 'products', 'Products & prices', 'admin', 'manage', can(profile, 'catalogue.manage')),
     item('staff', 'staff', 'Staff', 'admin', 'manage', can(profile, 'staff.manage')),
