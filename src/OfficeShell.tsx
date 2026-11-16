@@ -3,7 +3,7 @@ import { Profile, can } from './supabase'
 import { Icon, IconName } from './icons'
 import { useTheme } from './device'
 import { GROUPS, NavItem } from './nav'
-import { DAY_STATUS, formatTradingDate, useTradingDay } from './tradingDay'
+import { DAY_STATUS, ROLLOVER_LABEL, formatTradingDate, useTradingDay } from './tradingDay'
 import { SHORTCUTS, dialogOpen, isTyping } from './keys'
 
 // Office layout (17" office computer and the accountant's laptop): sidebar grouped by job,
@@ -171,7 +171,7 @@ function Header({ profile, unsent, onSignOut, onHelp, onMenu }: { profile: Profi
     return () => { clearInterval(t); window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
 
-  // Between midnight and 05:00 the trading day is still "yesterday"; say so, so nobody is confused.
+  // Between midnight and the rollover hour (08:00) the trading day is still "yesterday"; say so, so nobody is confused.
   const calendarToday = new Date(now.getTime() + 3 * 3600_000).toISOString().slice(0, 10)
   const spillover = date !== calendarToday
   const s = status === 'loading' || status === 'unknown' ? null : DAY_STATUS[status]
@@ -185,7 +185,7 @@ function Header({ profile, unsent, onSignOut, onHelp, onMenu }: { profile: Profi
       <div className="min-w-0">
         <div className="truncate font-semibold leading-tight">{formatTradingDate(date)}</div>
         <div className="hidden truncate text-xs leading-tight text-slate-400 sm:block">
-          {spillover ? 'Still last night’s trading day (it changes at 05:00)' : 'Trading day'}
+          {spillover ? 'Still last night’s trading day (it changes at ' + ROLLOVER_LABEL + ')' : 'Trading day'}
         </div>
       </div>
       {s && <span title={s.hint} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold md:px-3 md:text-sm ${s.tone}`}><span className="max-sm:hidden">Day: </span>{s.label}</span>}

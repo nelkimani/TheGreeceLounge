@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
+import { tradingDate } from './tradingDay'
 import { STATION_LABEL, Station } from './sale'
 import { buildDaySummaryHtml, printHtml, downloadDaySummaryCsv } from './daySummary'
 
@@ -15,8 +16,8 @@ type Slip = {
 type Summary = Record<string, number | string | null>
 type Exc = { kind: string; detail: string; amount: number | null }
 
-// Trading day rolls over at 05:00 Nairobi (UTC+3) = 02:00 UTC
-const today = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 10)
+// Trading day rolls over at 08:00 Nairobi (see tradingDay.ts)
+const today = () => tradingDate()
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 
 export default function Recon({ profile, onDone }: { profile: Profile; onDone: () => void }) {

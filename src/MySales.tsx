@@ -95,7 +95,7 @@ export default function MySales({ profile, onDone }: { profile: Profile; onDone:
                   </tr>))}</tbody>
               </table>)}
           </div>
-          <div className="text-base text-slate-400">Voided orders are not counted. A sale counts on the trading day it was made (the day rolls over at 5 am).</div>
+          <div className="text-base text-slate-400">Voided orders are not counted. A sale counts on the trading day it was made (the day rolls over at 8 am).</div>
         </div>)}
       {!cur && !err && <div className="text-xl text-slate-400">Loading…</div>}
     </div>

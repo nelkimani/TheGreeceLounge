@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 
-// The trading day rolls over at 05:00 Nairobi (UTC+3), which is 02:00 UTC, so subtracting 2 hours
-// from the UTC clock gives the trading date no matter what time zone the computer is set to.
-export const tradingDate = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 10)
+// The trading day rolls over at 08:00 Nairobi (UTC+3). It must match business_settings.day_rollover_hour in the database (migration 045).
+// Subtracting (rollover hour - 3) hours from the UTC clock gives the trading date no matter what time zone the computer is set to.
+export const ROLLOVER_HOUR = 8
+export const ROLLOVER_LABEL = String(ROLLOVER_HOUR).padStart(2, '0') + ':00'
+export const tradingShift = (d = new Date()) => new Date(d.getTime() - (ROLLOVER_HOUR - 3) * 3600_000)
+export const tradingDate = () => tradingShift().toISOString().slice(0, 10)
 
 export const formatTradingDate = (d: string) =>
   new Date(d + 'T00:00:00Z').toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })

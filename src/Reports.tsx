@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes, uid } from './lib'
+import { tradingDate, tradingShift } from './tradingDay'
 
 type Rep = { id: string; period_start: string; period_end: string; status: string; notes: string | null; director_notes: string | null
   created_by_name: string; signed_by_name: string | null; supplier_total: number; other_total: number; deductions: number; small_expenses: number }
@@ -12,8 +13,8 @@ type Sugg = { cash_shortages: { staff_id: string; name: string; date: string; sh
   stock_losses: { staff_id: string; name: string; product: string; type: string; qty: number; note: string | null; date: string }[] }
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 const KIND: Record<string, string> = { supplier_invoice: 'Supplier invoice', expense_small: 'Cash expense (already paid)', maintenance: 'Maintenance', payroll: 'Payroll', deduction: 'Deduction', other: 'Other' }
-const monthStart = () => { const d = new Date(Date.now() - 2 * 3600_000); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10) }
-const today = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 10)
+const monthStart = () => { const d = tradingShift(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10) }
+const today = () => tradingDate()
 const badge = (s: string) => s === 'signed_off' || s === 'confirmed' ? 'bg-green-700' : s === 'returned' || s === 'rejected' ? 'bg-red-700' : s === 'submitted' ? 'bg-amber-600 text-on-accent' : 'bg-slate-600'
 
 export default function Reports({ profile, onDone }: { profile: Profile; onDone: () => void }) {
