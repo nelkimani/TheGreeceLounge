@@ -7,6 +7,9 @@ export const ROLLOVER_HOUR = 8
 export const ROLLOVER_LABEL = String(ROLLOVER_HOUR).padStart(2, '0') + ':00'
 export const tradingShift = (d = new Date()) => new Date(d.getTime() - (ROLLOVER_HOUR - 3) * 3600_000)
 export const tradingDate = () => tradingShift().toISOString().slice(0, 10)
+const addDay = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400_000).toISOString().slice(0, 10)
+// Books for trading day D must be reconciled and closed before the next rollover (08:00 the next morning).
+export const closeDeadline = (d: string) => Date.parse(d + 'T00:00:00Z') + 86400_000 + (ROLLOVER_HOUR - 3) * 3600_000
 
 export const formatTradingDate = (d: string) =>
   new Date(d + 'T00:00:00Z').toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -34,6 +37,8 @@ const fromRow = (status: string | null | undefined): DayStatus =>
 export function useTradingDay(canSeeClose: boolean) {
   const [date, setDate] = useState(tradingDate())
   const [status, setStatus] = useState<DayStatus>(canSeeClose ? 'loading' : 'unknown')
+  // Yesterday: it should have been closed by this morning's rollover. 'overdue' = it had sales and is still not approved.
+  const [prevOverdue, setPrevOverdue] = useState(false)
 
   const refresh = useCallback(async () => {
     const d = tradingDate()
@@ -43,6 +48,12 @@ export function useTradingDay(canSeeClose: boolean) {
       .eq('business_date', d).is('shift_id', null).maybeSingle()
     if (error) { setStatus(s => (s === 'loading' ? 'unknown' : s)); return }   // offline: keep what we last knew
     setStatus(fromRow(data?.status))
+    const prev = addDay(d, -1)
+    const pc = await supabase.from('daily_closes').select('status').eq('business_date', prev).is('shift_id', null).maybeSingle()
+    if (pc.error) return
+    if (pc.data?.status === 'approved') { setPrevOverdue(false); return }
+    const sl = await supabase.from('sales_slips').select('*', { count: 'exact', head: true }).eq('business_date', prev)
+    setPrevOverdue(!sl.error && (sl.count ?? 0) > 0)
   }, [canSeeClose])
 
   useEffect(() => {
@@ -54,5 +65,5 @@ export function useTradingDay(canSeeClose: boolean) {
     return () => { clearInterval(t); window.removeEventListener('focus', onFocus); window.removeEventListener('online', onFocus) }
   }, [refresh])
 
-  return { date, status, refresh }
+  return { date, status, prevOverdue, refresh }
 }

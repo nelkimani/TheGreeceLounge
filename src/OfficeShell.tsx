@@ -3,7 +3,7 @@ import { Profile, can } from './supabase'
 import { Icon, IconName } from './icons'
 import { useTheme } from './device'
 import { GROUPS, NavItem } from './nav'
-import { DAY_STATUS, ROLLOVER_LABEL, formatTradingDate, useTradingDay } from './tradingDay'
+import { DAY_STATUS, ROLLOVER_LABEL, closeDeadline, formatTradingDate, useTradingDay } from './tradingDay'
 import { SHORTCUTS, dialogOpen, isTyping } from './keys'
 
 // Office layout (17" office computer and the accountant's laptop): sidebar grouped by job,
@@ -160,7 +160,7 @@ function Sidebar({ items: all, activeId, collapsed: wantCollapsed, onToggle, onG
 /* ───────────────────────── top bar ───────────────────────── */
 
 function Header({ profile, unsent, onSignOut, onHelp, onMenu }: { profile: Profile; unsent: number; onSignOut: () => void; onHelp: () => void; onMenu: () => void }) {
-  const { date, status } = useTradingDay(can(profile, 'recon.view_all'))
+  const { date, status, prevOverdue } = useTradingDay(can(profile, 'recon.view_all'))
   const [now, setNow] = useState(new Date())
   const [online, setOnline] = useState(navigator.onLine)
   const [theme, toggleTheme] = useTheme()
@@ -189,6 +189,12 @@ function Header({ profile, unsent, onSignOut, onHelp, onMenu }: { profile: Profi
         </div>
       </div>
       {s && <span title={s.hint} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold md:px-3 md:text-sm ${s.tone}`}><span className="max-sm:hidden">Day: </span>{s.label}</span>}
+      {prevOverdue && <span title={`Yesterday's books were not closed and approved by ${ROLLOVER_LABEL}. Finish Reconciliation for that day.`}
+        className="shrink-0 whitespace-nowrap rounded-full bg-red-700 px-2 py-1 text-xs font-semibold md:px-3 md:text-sm">Yesterday NOT closed</span>}
+      {status !== 'loading' && status !== 'unknown' && status !== 'closed' && (() => {
+        const left = closeDeadline(date) - now.getTime(), h = Math.floor(left / 3600_000), m = Math.floor((left % 3600_000) / 60_000)
+        return left > 0 ? <span title={`Reconcile and close this day before ${ROLLOVER_LABEL}.`}
+          className={`hidden shrink-0 whitespace-nowrap rounded-full px-2 py-1 text-xs font-semibold md:inline md:px-3 md:text-sm ${left < 3 * 3600_000 ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>Close by {ROLLOVER_LABEL} · {h}h {String(m).padStart(2, '0')}m left</span> : null })()}
       {status === 'loading' && <span className="hidden shrink-0 text-sm text-slate-400 sm:inline">Checking day…</span>}
       <span className="flex-1" />
       {unsent > 0 && <span className="shrink-0 whitespace-nowrap rounded bg-red-700 px-2 py-1 text-sm font-semibold md:px-3 md:text-base"><span className="max-sm:hidden">NOT SENT: </span><span className="sm:hidden">⚠ </span>{unsent}</span>}
