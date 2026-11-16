@@ -2,6 +2,7 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
+import { tradingDate } from './tradingDay'
 
 type Tab = 'sales' | 'log' | 'profit' | 'stock' | 'cash'
 export type Row = Record<string, string | number | null>
@@ -10,8 +11,8 @@ export type Col = { key: string; label: string; fmt?: 'kes' | 'num' | 'pct' | 't
 type Data = any
 
 export const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
-// The trading day rolls over at 05:00 Nairobi (UTC+3), which is 02:00 UTC.
-export const today = () => new Date(Date.now() - 2 * 3600_000).toISOString().slice(0, 10)
+// The trading day rolls over at 08:00 Nairobi (see tradingDay.ts).
+export const today = () => tradingDate()
 export const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400_000).toISOString().slice(0, 10)
 export const monthStart = (d: string) => d.slice(0, 8) + '01'
 export const weekStart = (d: string) => addDays(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7))   // Monday

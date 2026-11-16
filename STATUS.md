@@ -40,7 +40,7 @@ Last updated: 11 Nov 2026
 | Decision | Value |
 |---|---|
 | Stack | React + TypeScript + Vite + Tailwind, Supabase (Postgres, Auth, Edge Functions, Realtime) |
-| Trading-day rollover | 05:00 Africa/Nairobi |
+| Trading-day rollover | 08:00 Africa/Nairobi (migration 045; src/tradingDay.ts must match) |
 | Payments when offline | Blocked (online only) |
 | Billable trigger | Lines bill when SERVED (food and drinks) |
 | Liquor custody deducted | When served |
