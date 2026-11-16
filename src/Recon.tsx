@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
-import { tradingDate } from './tradingDay'
+import { ROLLOVER_LABEL, closeDeadline, tradingDate } from './tradingDay'
 import { STATION_LABEL, Station } from './sale'
 import { buildDaySummaryHtml, printHtml, downloadDaySummaryCsv } from './daySummary'
 
@@ -314,6 +314,10 @@ function Close({ date, profile, flash }: P) {
       <div className="rounded-xl bg-slate-800 p-4">
         <div className="mb-2 flex items-center gap-3 text-2xl font-bold">Day {date}
           <span className="rounded bg-slate-600 px-3 py-1 text-lg">{status}</span></div>
+        {status !== 'approved' && (() => { const left = closeDeadline(date) - Date.now()
+          return <div className={`mb-2 rounded-lg p-2 text-lg font-semibold ${left <= 0 ? 'bg-red-700' : left < 3 * 3600_000 ? 'bg-amber-600 text-on-accent' : 'bg-slate-700'}`}>
+            {left <= 0 ? `This day should have been closed by ${ROLLOVER_LABEL} this morning. Finish it now.`
+              : `Reconcile and get this day approved before ${ROLLOVER_LABEL} (${Math.floor(left / 3600_000)}h ${String(Math.floor((left % 3600_000) / 60_000)).padStart(2, '0')}m left).`}</div> })()}
         {row('Sales (captain orders, not voided)', kes(n('sales_total')))}
         {row('Captain orders in the system', String(n('slips_total')))}
         {row('Captain orders seen', String(n('slips_seen')))}
