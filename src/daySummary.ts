@@ -3,7 +3,7 @@
 
 export type SummarySale = { name: string; qty: number; total: number }
 export type SummarySettle = { cash: number; mpesa: number; variance: number; notes: string | null; cleared_at: string; cleared_by: string }
-export type SummaryWaiter = { name: string; staff_no: string; orders: number; sales: number; products: SummarySale[]; settlement: SummarySettle | null }
+export type SummaryWaiter = { name: string; staff_no: string; orders: number; sales: number; products: SummarySale[]; settlement: SummarySettle | null; draft?: { cash: number; mpesa: number } | null }
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 const money = (n: number) => Number(n ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -42,7 +42,7 @@ export function buildDaySummaryHtml(date: string, all: SummaryWaiter[], printedB
     return `<tr><td>${esc(w.name)} <span class="m">${esc(w.staff_no)}</span></td><td class="r">${w.orders}</td><td class="r">${money(w.sales)}</td>` +
       (s ? `<td class="r">${money(s.cash)}</td><td class="r">${money(s.mpesa)}</td><td class="r ${s.variance > 0 ? 'bad' : ''}">${esc(vlabel(Number(s.variance)))}</td>` +
            `<td>${esc(s.notes ?? '')}<div class="m">${esc(s.cleared_by)} ${hhmm(s.cleared_at)}</div></td>`
-         : `<td colspan="4" class="bad"><b>NOT CLEARED</b></td>`) + `</tr>`
+         : `<td colspan="4" class="bad"><b>NOT CLEARED</b>${w.draft ? ` <span class="m">(part paid so far: cash ${money(w.draft.cash)}, M-Pesa ${money(w.draft.mpesa)})</span>` : ''}</td>`) + `</tr>`
   }).join('')
   const detail = ws.map(w => `
     <div class="blk"><h3>${esc(w.name)} <span class="m">${esc(w.staff_no)} · ${w.orders} order${w.orders === 1 ? '' : 's'}</span><span class="r">KES ${money(w.sales)}</span></h3>

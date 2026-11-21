@@ -1,6 +1,6 @@
 # The Glizz Lounge POS — Project status
 
-Last updated: 11 Nov 2026
+Last updated: 16 Nov 2026
 
 ## Where we are
 - Phases 0 to 6 built (foundation, ordering, stock, reconciliation, purchasing, owner reports).
@@ -14,6 +14,10 @@ Last updated: 11 Nov 2026
 - **9 Nov 2026: store -> counter (migration 028).** Deliveries are received into the Store (count checked against the invoice). Stock > Issue to counter moves stock to the counter that waiters sell from; shows store and counter quantities side by side, flags COUNTER LOW, keeps a history. Run 028.
 - **11 Nov 2026: managers-only void (migration 035 + app).** Waiters no longer have a Void button; `request_void` needs `approval.grant`. Requests already sent stay in Approvals.
 - **11 Nov 2026: Bookkeeping screen (migration 037 + app).** Reports > Bookkeeping (permission `report.profit`): worth of all stock bought, remaining stock at cost and at selling price, profit to expect, lost/other, per-drink table with category filter, search and CSV; plus profit and loss for any period using the same `report_profit` as Owner reports. Run 037 first. Cost is the latest delivery price, so drinks with no cost or price are flagged.
+- **16 Nov 2026: void one item or the whole receipt (migration 046 + app).** My orders (manager only; 049 later opened item voids to the counter): **Void item** on any line, **Void whole slip**, and **Void whole receipt** (every live slip of the order at once). A voided line is struck through, the bar stock for it goes back, the station gets a VOID slip for just that line (**Print VOID slip** beside it), and it leaves sales, the waiter's day total and the reports. Voiding the last line of a slip voids the slip. Owner reports > Sales log > Voids lists items and slips. Run 046 after 041 and 044.
+- **16 Nov 2026: manual trading day (migration 047 + app).** The automatic 08:00 rollover is gone. The day stays open until the accountant or manager presses **End trading day** (Reconciliation > Day close); everything after goes into the next day. The ended day can still be cleared and closed. A day must be ended before its close can be submitted. The top bar shows "open since". Run 047 after 046. History keeps its old dates.
+- **16 Nov 2026: clearance Save and Clear (migration 048 + app).** Reconciliation > Waiters: **Save** keeps what has been received so far (cash, M-Pesa, tick, note) without clearing the waiter, shown as "Part paid"; open the waiter later, type the new totals, Save again, then **Clear** when it is all in. Re-opening a cleared waiter brings the cleared amounts back as saved progress. Run 048 after 044 and 046 (it keeps the manager self-clear rule).
+- **20 Nov 2026: the counter can void items (migration 049 + app).** New permission `order.void`, given to Bartender (the counter) and Manager, not waiters. Counter staff see **Void item** on every line in My orders (all waiters' receipts for the open day) and apply it at once: the item's stock goes back to the bar and it leaves sales, the waiter's total and the reports, logged under the counter person's name. Voiding a whole slip or whole receipt stays manager-only. Run 049 after 046. To change who may void items, change `order.void` in role_permissions.
 - Next: run 024 and 025, then 022 and 023 in Supabase, test on the three terminals, then the UI polish pass and Phase 7.
 
 ## How a sale works now
@@ -40,7 +44,7 @@ Last updated: 11 Nov 2026
 | Decision | Value |
 |---|---|
 | Stack | React + TypeScript + Vite + Tailwind, Supabase (Postgres, Auth, Edge Functions, Realtime) |
-| Trading-day rollover | 08:00 Africa/Nairobi (migration 045; src/tradingDay.ts must match) |
+| Trading-day rollover | Manual: End trading day button (since 16 Nov 2026; before that 05:00 Africa/Nairobi) |
 | Payments when offline | Blocked (online only) |
 | Billable trigger | Lines bill when SERVED (food and drinks) |
 | Liquor custody deducted | When served |
@@ -75,6 +79,10 @@ Last updated: 11 Nov 2026
 | 024_delivery_sheet_upload.sql | NOT run yet | `receive_delivery_sheet`: records a supplier delivery from Excel (stock + cost, new drinks, selling prices). Run after 023. Safe to re-run |
 | 023_stock_sheet_import.sql | NOT run yet | Stock sheet upload: `stock.import` permission and `import_stock_sheet` (adds drinks, loads opening stock once). Run after 022. Safe to re-run |
 | 035_managers_only_void.sql | NOT run yet | `request_void` now requires manager permission (`approval.grant`); waiters can no longer void |
+| 046_void_single_item.sql | NOT run yet | `request_void_item`, `request_void_order`; slips carry per-line void flags; voided lines leave the waiter totals and sales log |
+| 047_manual_trading_day.sql | NOT run yet | `trading_days`, manual `end_trading_day`, `current_trading_day`; `business_date()` follows it; close cannot be submitted for an open day |
+| 049_counter_void_item.sql | NOT run yet | `order.void` permission (bartender, manager); `request_void_item` needs it; counter sees all receipts |
+| 048_clearance_save_progress.sql | NOT run yet | `save_waiter_progress` + saved progress on the waiter sheet; clear and re-open keep it in step |
 | 037_bookkeeping_report.sql | NOT run yet | `report_bookkeeping()`: read-only stock worth, remaining, expected profit per drink for the Bookkeeping screen. Needs 016 and 022 |
 
 ## App (repo root)

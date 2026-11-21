@@ -9,7 +9,7 @@ export const STATION_LABEL: Record<Station, string> = { bar: 'Bar', choma: 'Chom
 // Same rule as slip_station() in the database: drinks, all meat, everything else.
 export const stationOf = (s: string): Station => (s === 'bar' ? 'bar' : s === 'choma' ? 'choma' : 'restaurant')
 
-export type SaleLine = { qty: number; name: string; price: number; notes?: string | null }
+export type SaleLine = { qty: number; name: string; price: number; notes?: string | null; id?: string; voided?: boolean; void_reason?: string | null }
 export type SaleSlip = { id: string; slip_no: number; station: Station; lines: SaleLine[]; voided?: boolean }
 export type Sale = {
   order_id: string; order_no: number; created_at: string; waiter: string; label: string
@@ -19,7 +19,7 @@ export type Sale = {
 export const liveSlips = (s: Sale) => s.slips.filter(x => !x.voided)
 
 export function receiptLines(s: Sale): BillLine[] {
-  return liveSlips(s).flatMap(sl => sl.lines.map((l, i) => ({
+  return liveSlips(s).flatMap(sl => sl.lines.filter(l => !l.voided).map((l, i) => ({
     item_id: `${sl.id}-${i}`, product_name: l.name, qty: l.qty, unit_price: l.price,
     line_total: l.qty * l.price, status: 'served',
   })))

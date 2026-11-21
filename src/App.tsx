@@ -29,6 +29,7 @@ import { FeedbackHost, confirmDialog } from './feedback'
 import ScreenKeyboard from './ScreenKeyboard'
 import { Icon } from './icons'
 import { allowHandheld } from './printer'
+import { refreshTradingDay, useTradingDayRefresh } from './tradingDay'
 
 const isTerminal = TERMINAL_CODE !== 'OFFICE'
 
@@ -48,11 +49,13 @@ export default function App() {
 
   useEffect(() => {
     if (!signedIn) { setProfile(null); setProblem(''); setView('home'); return }
-    supabase.rpc('my_profile').then(({ data, error }) => {
+    supabase.rpc('my_profile').then(async ({ data, error }) => {
       if (error || !data) { setProblem('This account is not set up as staff, or is inactive.'); return }
+      await refreshTradingDay()          // know which trading day is open before any screen asks for "today"
       setProfile(data as Profile)
     })
   }, [signedIn])
+  useTradingDayRefresh(!!profile)
 
   useEffect(() => {
     const t = setInterval(() => setUnsent(listNotSent().length), 3000)
