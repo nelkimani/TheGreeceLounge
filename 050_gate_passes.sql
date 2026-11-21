@@ -1,5 +1,6 @@
--- The Glizz Lounge POS — 046: gate passes (entry paid at the gate, redeemed for drinks at the counter)
--- Run in the Supabase SQL Editor ("Run without RLS" if asked). Safe to run more than once. Nothing existing is dropped.
+-- The Glizz Lounge POS — 050: gate passes (entry paid at the gate, redeemed for drinks at the counter)
+-- Run in the Supabase SQL Editor ("Run without RLS" if asked). Run AFTER 041, 044, 046-049 (it builds on the Save/Clear waiter clearing
+-- from 048). Safe to run more than once. Nothing existing is dropped.
 --
 -- How it works
 --   * The manager sets the entry amount for the night (e.g. Friday KES 500). A pass is worth that amount in drinks.
@@ -196,7 +197,7 @@ begin
   return r;
 end $$;
 
--- ───────────── waiter clearing now knows about passes ─────────────
+-- ───────────── waiter clearing now knows about passes (builds on 048: Save progress / Clear) ─────────────
 create or replace function waiter_settlement_sheet(p_date date) returns jsonb
 language plpgsql stable security definer set search_path = public as $$
 declare r jsonb;
@@ -212,7 +213,8 @@ begin
      where (s.active and exists (select 1 from staff_roles sr where sr.staff_id = s.id and sr.role_code = 'waiter'))
         or exists (select 1 from sl where sl.waiter_id = s.id)
         or exists (select 1 from ps where ps.waiter_id = s.id)
-        or exists (select 1 from waiter_settlements w where w.waiter_id = s.id and w.business_date = p_date)),
+        or exists (select 1 from waiter_settlements w where w.waiter_id = s.id and w.business_date = p_date)
+        or exists (select 1 from waiter_settlement_drafts d where d.waiter_id = s.id and d.business_date = p_date)),
   w as (
     select pe.id, pe.full_name, pe.staff_no, coalesce(o.n, 0) as orders, coalesce(t.t, 0) as sales, coalesce(ps.p, 0) as passes,
            coalesce((select jsonb_agg(jsonb_build_object('name', sl.product, 'qty', sl.qty, 'total', sl.total) order by sl.total desc, sl.product)
@@ -221,14 +223,18 @@ begin
                                       'sales_at_clearing', x.sales_total, 'passes', x.passes_used, 'cleared_at', x.cleared_at,
                                       'cleared_by', cb.full_name, 'mpesa_confirmed', x.mpesa_confirmed)
               from waiter_settlements x join staff cb on cb.id = x.cleared_by
-             where x.waiter_id = pe.id and x.business_date = p_date) as settlement
+             where x.waiter_id = pe.id and x.business_date = p_date) as settlement,
+           (select jsonb_build_object('cash', d.cash_handed, 'mpesa', d.mpesa_total, 'notes', d.notes,
+                                      'mpesa_confirmed', d.mpesa_confirmed, 'saved_at', d.saved_at, 'saved_by', sb.full_name)
+              from waiter_settlement_drafts d join staff sb on sb.id = d.saved_by
+             where d.waiter_id = pe.id and d.business_date = p_date) as draft
     from people pe left join ord o on o.waiter_id = pe.id left join tot t on t.waiter_id = pe.id left join ps on ps.waiter_id = pe.id)
   select jsonb_build_object(
     'date', p_date,
     'locked', day_locked(p_date),
     'waiters', coalesce((select jsonb_agg(jsonb_build_object(
         'waiter_id', id, 'name', full_name, 'staff_no', staff_no, 'orders', orders, 'sales', sales, 'passes', passes,
-        'products', products, 'settlement', settlement) order by (settlement is not null), sales desc, full_name) from w), '[]'::jsonb)
+        'products', products, 'settlement', settlement, 'draft', draft) order by (settlement is not null), sales desc, full_name) from w), '[]'::jsonb)
   ) into r;
   return r;
 end $$;
@@ -255,6 +261,7 @@ begin
   insert into waiter_settlements(waiter_id, business_date, sales_total, passes_used, cash_handed, mpesa_total, variance, mpesa_confirmed, notes, cleared_by)
   values (p_waiter, p_date, sales, pass, cash, mp, diff, coalesce(p_confirmed, false), nullif(btrim(p_notes), ''), auth.uid())
   returning * into v;
+  delete from waiter_settlement_drafts where waiter_id = p_waiter and business_date = p_date;        -- progress is now the clearance
   perform write_audit('waiter.clear', 'waiter_settlements', v.id::text, null, to_jsonb(v), p_notes);
   return v;
 end $$;

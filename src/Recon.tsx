@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { kes } from './lib'
-import { tradingDate } from './tradingDay'
+import { tradingDate, tradingDayOpenedAt, refreshTradingDay } from './tradingDay'
+import { confirmDialog } from './feedback'
 import { STATION_LABEL, Station } from './sale'
 import { buildDaySummaryHtml, printHtml, downloadDaySummaryCsv } from './daySummary'
 
@@ -10,14 +11,13 @@ type Tab = 'waiters' | 'slips' | 'close'
 type Slip = {
   captain_order_id: string; slip_no: number; order_no: number; station: Station; created_at: string
   waiter_name: string; table_number: string | null; customer_name: string | null
-  lines: { qty: number; name: string }[] | null; total: number; reprints: number
+  lines: { qty: number; name: string; voided?: boolean }[] | null; total: number; reprints: number
   seen_at: string | null; voided_at: string | null; void_reason: string | null; void_pending: boolean
 }
 type Summary = Record<string, number | string | null>
 type Exc = { kind: string; detail: string; amount: number | null }
 
-// Trading day rolls over at 08:00 Nairobi (see tradingDay.ts)
-const today = () => tradingDate()
+const today = tradingDate
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 
 export default function Recon({ profile, onDone }: { profile: Profile; onDone: () => void }) {
@@ -43,7 +43,7 @@ export default function Recon({ profile, onDone }: { profile: Profile; onDone: (
       {msg && <div className={`mb-3 rounded-lg p-3 text-lg font-semibold ${bad ? 'bg-red-700' : 'bg-green-700'}`}>{msg}</div>}
       {tab === 'waiters' && <Waiters date={date} profile={profile} flash={flash} />}
       {tab === 'slips' && <Slips date={date} profile={profile} flash={flash} />}
-      {tab === 'close' && <Close date={date} profile={profile} flash={flash} />}
+      {tab === 'close' && <Close date={date} profile={profile} flash={flash} onEnded={setDate} />}
     </div>
   )
 }
@@ -52,12 +52,14 @@ type P = { date: string; profile: Profile; flash: (m: string, bad?: boolean) => 
 
 type WSale = { name: string; qty: number; total: number }
 type WSettle = { passes?: number; cash: number; mpesa: number; variance: number; notes: string | null; sales_at_clearing: number; cleared_at: string; cleared_by: string; mpesa_confirmed: boolean }
-type WRow = { waiter_id: string; name: string; staff_no: string; orders: number; sales: number; passes: number; products: WSale[]; settlement: WSettle | null }
+type WDraft = { cash: number; mpesa: number; notes: string | null; mpesa_confirmed: boolean; saved_at: string; saved_by: string }
+type WRow = { waiter_id: string; name: string; staff_no: string; orders: number; sales: number; passes: number; products: WSale[]; settlement: WSettle | null; draft: WDraft | null }
 type Draft = { cash: string; mpesa: string; confirmed: boolean; notes: string }
 const amt = (v: string) => { const x = Number(v.replace(/,/g, '').trim()); return v.trim() === '' ? 0 : Number.isFinite(x) ? x : NaN }
 
 // Day-end clearing: every waiter with what they sold. The accountant records the cash handed over and the M-Pesa total
 // read from the till phone (after confirming every M-Pesa code by hand), then clears the waiter.
+// SAVE keeps the amounts so far when a waiter brings the money bit by bit (the waiter stays "not cleared"); CLEAR finishes.
 function Waiters({ date, profile, flash }: P) {
   const [rows, setRows] = useState<WRow[] | null>(null)
   const [locked, setLocked] = useState(false)
@@ -76,7 +78,13 @@ function Waiters({ date, profile, flash }: P) {
   }, [date, flash])
   useEffect(() => { setRows(null); setDrafts({}); setReopen(null); load() }, [load])
 
-  const dr = (id: string): Draft => drafts[id] ?? { cash: '', mpesa: '', confirmed: false, notes: '' }
+  const numStr = (x: number) => (Number(x) ? String(Number(x)) : '')
+  const dr = (id: string): Draft => {
+    if (drafts[id]) return drafts[id]
+    const sv = rows?.find(r => r.waiter_id === id)?.draft          // what was saved earlier today
+    return sv ? { cash: numStr(sv.cash), mpesa: numStr(sv.mpesa), confirmed: sv.mpesa_confirmed, notes: sv.notes ?? '' }
+              : { cash: '', mpesa: '', confirmed: false, notes: '' }
+  }
   const set = (id: string, patch: Partial<Draft>) => setDrafts(d => ({ ...d, [id]: { ...dr(id), ...patch } }))
   const toggle = (id: string) => setOpen(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
 
@@ -88,7 +96,20 @@ function Waiters({ date, profile, flash }: P) {
     const { error } = await supabase.rpc('settle_waiter', { p_waiter: w.waiter_id, p_date: date, p_cash: cash, p_mpesa: mp, p_confirmed: d.confirmed, p_notes: d.notes || null })
     setBusy(false)
     if (error) { flash(error.message, true); return }
-    flash(`${w.name} cleared.`); load()
+    flash(`${w.name} cleared.`); setDrafts(x => { const n = { ...x }; delete n[w.waiter_id]; return n }); load()
+  }
+  const save = async (w: WRow) => {
+    if (busy) return
+    const d = dr(w.waiter_id), cash = amt(d.cash), mp = amt(d.mpesa)
+    if (Number.isNaN(cash) || Number.isNaN(mp)) { flash('Type the amounts as numbers.', true); return }
+    setBusy(true)
+    const { error } = await supabase.rpc('save_waiter_progress', { p_waiter: w.waiter_id, p_date: date, p_cash: cash, p_mpesa: mp, p_confirmed: d.confirmed, p_notes: d.notes || null })
+    setBusy(false)
+    if (error) { flash(error.message, true); return }
+    const left = Number(w.sales) - Number(w.passes ?? 0) - cash - mp
+    flash(`${w.name}: progress saved (${kes(cash)} cash + ${kes(mp)} M-Pesa). ${left > 0 ? `${kes(left)} still to come.` : left < 0 ? `${kes(-left)} over.` : 'Fully received - press Clear.'}`)
+    setDrafts(x => { const n = { ...x }; delete n[w.waiter_id]; return n })
+    load()
   }
   const doReopen = async (w: WRow) => {
     if (busy || !reopen) return
@@ -96,7 +117,7 @@ function Waiters({ date, profile, flash }: P) {
     const { error } = await supabase.rpc('reopen_waiter', { p_waiter: w.waiter_id, p_date: date, p_reason: reopen.reason })
     setBusy(false)
     if (error) { flash(error.message, true); return }
-    flash(`${w.name} re-opened.`); setReopen(null); load()
+    flash(`${w.name} re-opened.`); setReopen(null); setDrafts(x => { const n = { ...x }; delete n[w.waiter_id]; return n }); load()
   }
 
   if (!rows) return <div className="text-xl text-slate-400">Loading…</div>
@@ -142,6 +163,7 @@ function Waiters({ date, profile, flash }: P) {
               <span className="text-2xl font-bold">{w.name}</span>
               <span className="text-lg text-slate-300">{w.staff_no} · {w.orders} order{w.orders === 1 ? '' : 's'}</span>
               {st && <span className="rounded bg-green-700 px-2 py-1 font-semibold">Cleared</span>}
+              {!st && w.draft && <span className="rounded bg-amber-600 px-2 py-1 font-semibold text-on-accent">Part paid · {kes(Number(w.draft.cash) + Number(w.draft.mpesa))} of {kes(Number(w.sales) - Number(w.passes ?? 0))}</span>}
               <span className="ml-auto text-2xl font-bold tabular-nums">{kes(w.sales)}</span>
               <span className="text-xl text-slate-400">{isOpen ? '▲' : '▼'}</span>
             </button>
@@ -182,6 +204,9 @@ function Waiters({ date, profile, flash }: P) {
                   ) : canClear && !locked ? (
                     <div className="space-y-2">
                       {Number(w.passes) > 0 && <div className="flex justify-between rounded-lg bg-slate-800 p-2 text-lg"><span>Paid with gate passes (not cash)</span><b>{kes(Number(w.passes))}</b></div>}
+                      {w.draft && <div className="rounded-lg bg-amber-900/40 p-2 text-base text-amber-200">
+                        Saved at {new Date(w.draft.saved_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })} by {w.draft.saved_by}:
+                        {' '}{kes(w.draft.cash)} cash + {kes(w.draft.mpesa)} M-Pesa. Type the new TOTALS received so far, then Save again, or Clear when it is all in.</div>}
                       <label className="block text-lg">Cash handed over (KES)
                         <input className={input + ' mt-1 w-full'} inputMode="decimal" value={d.cash} onChange={e => set(w.waiter_id, { cash: e.target.value })} placeholder="0" /></label>
                       <label className="block text-lg">M-Pesa total from the till phone (KES)
@@ -192,7 +217,11 @@ function Waiters({ date, profile, flash }: P) {
                       <div className={`flex justify-between rounded-lg bg-slate-800 p-2 text-xl ${diff === 0 ? 'text-green-400' : diff > 0 ? 'text-red-400' : 'text-amber-300'}`}>
                         <span>{diff === 0 ? 'Balanced' : diff > 0 ? 'Short' : 'Over'}</span><b>{kes(Math.abs(diff))}</b></div>
                       {diff !== 0 && <input className={input + ' w-full'} placeholder="Reason for the difference (required)" value={d.notes} onChange={e => set(w.waiter_id, { notes: e.target.value })} />}
-                      <Btn disabled={busy} onClick={() => clear(w)}>Clear {w.name}</Btn>
+                      <div className="flex flex-wrap gap-2">
+                        <Btn kind="ghost" disabled={busy} onClick={() => save(w)}>Save</Btn>
+                        <Btn disabled={busy} onClick={() => clear(w)}>Clear {w.name}</Btn>
+                      </div>
+                      <div className="text-base text-slate-400">Save keeps what has been received so far and leaves {w.name} not cleared. Clear finishes it.</div>
                     </div>
                   ) : <div className="text-lg text-slate-400">Not cleared yet.</div>}
                 </div>
@@ -268,7 +297,10 @@ function Slips({ date, profile, flash }: P) {
             <div className="w-20 text-lg text-slate-300">{new Date(r.created_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</div>
             <div className="w-40 text-lg">{r.waiter_name}</div>
             <div className="w-28 text-lg">{r.table_number ? `Table ${r.table_number}` : r.customer_name}</div>
-            <div className="min-w-0 flex-1 text-base text-slate-300">{(r.lines ?? []).map(l => `${l.qty} × ${l.name}`).join(', ')}</div>
+            <div className="min-w-0 flex-1 text-base text-slate-300">
+              {(r.lines ?? []).map((l, i) => (
+                <span key={i} className={l.voided && !r.voided_at ? 'text-slate-500 line-through' : ''}>{i > 0 ? ', ' : ''}{l.qty} × {l.name}</span>))}
+            </div>
             <div className="w-28 text-right text-xl font-semibold">{kes(r.total)}</div>
             {r.voided_at && <span className="rounded bg-red-700 px-2 py-1 font-semibold">VOID · {r.void_reason}</span>}
             {r.void_pending && !r.voided_at && <span className="rounded bg-amber-600 px-2 py-1 font-semibold text-on-accent">Void asked</span>}
@@ -280,14 +312,16 @@ function Slips({ date, profile, flash }: P) {
   )
 }
 
-function Close({ date, profile, flash }: P) {
+function Close({ date, profile, flash, onEnded }: P & { onEnded: (closedDate: string) => void }) {
   const [s, setS] = useState<Summary | null>(null)
   const [exc, setExc] = useState<Exc[]>([])
   const [spent, setSpent] = useState(0)
   const [unclearedW, setUnclearedW] = useState(0)
   const [notes, setNotes] = useState('')
   const [busy, setBusy] = useState(false)
+  const [, bump] = useState(0)
   const load = useCallback(async () => {
+    await refreshTradingDay(); bump(x => x + 1)
     const [a, b] = await Promise.all([supabase.rpc('day_summary', { p_date: date }), supabase.rpc('day_exceptions', { p_date: date })])
     if (a.error) flash(a.error.message, true); else setS(a.data as Summary)
     setExc((b.data ?? []) as Exc[])
@@ -305,6 +339,23 @@ function Close({ date, profile, flash }: P) {
     setBusy(false)
     if (error) { flash(error.message, true); return }
     flash(ok); setNotes(''); load()
+  }
+  const isOpenDay = date === tradingDate()
+  const endDay = async () => {
+    if (busy) return
+    const ok = await confirmDialog({
+      title: 'End the trading day?',
+      message: `${date} will be ended now. Everything sold from now on goes into the next day. You can still clear waiters and submit the close for ${date} afterwards.`,
+      confirmText: 'End trading day' })
+    if (!ok) return
+    setBusy(true)
+    const { data, error } = await supabase.rpc('end_trading_day', { p_expected: date, p_note: notes || null })
+    setBusy(false)
+    if (error) { flash(error.message, true); await refreshTradingDay(); bump(x => x + 1); return }
+    await refreshTradingDay()
+    const r = data as { closed: string; opened: string }
+    flash(`Trading day ${r.closed} ended. ${r.opened} is now open. You are looking at ${r.closed} so you can finish clearing it.`)
+    setNotes(''); onEnded(r.closed)
   }
   if (!s) return <div className="text-xl text-slate-400">Loading…</div>
   const n = (k: string) => Number(s[k] ?? 0)
@@ -330,6 +381,15 @@ function Close({ date, profile, flash }: P) {
         {row('Stock count variances', String(n('count_variances')), n('count_variances') > 0)}
         {row('Approvals pending', String(n('pending_approvals')), n('pending_approvals') > 0)}
         <div className="mt-2 text-base text-slate-400">Cash and M-Pesa are cleared per waiter in the Waiters tab. Count the bar in Bar stock: expected stock comes from the captain orders.</div>
+        <div className={`mt-3 rounded-lg p-3 text-lg ${isOpenDay ? 'bg-green-900/50' : 'bg-slate-700'}`}>
+          {isOpenDay
+            ? <>
+                <div className="font-semibold">This trading day is OPEN{tradingDayOpenedAt() ? ` (since ${new Date(tradingDayOpenedAt()!).toLocaleString('en-KE', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : ''}.</div>
+                <div className="text-base text-slate-300">It does not end by itself. End it when the shift is over; sales after that go into the next day.</div>
+                {can(profile, 'close.submit') && <Btn className="mt-2" disabled={busy} onClick={endDay}>End trading day</Btn>}
+              </>
+            : <div className="font-semibold">This trading day has ended. Finish clearing the waiters, then submit its close below.</div>}
+        </div>
         {s.close_submitted_by && <div className="mt-2 text-slate-300">Submitted by {String(s.close_submitted_by)}{s.close_notes ? ` — ${String(s.close_notes)}` : ''}</div>}
 
         {status !== 'approved' && (
@@ -338,13 +398,14 @@ function Close({ date, profile, flash }: P) {
               placeholder={open > 0 ? 'Reason for closing with open items / decision note' : 'Note (optional)'} />
             <div className="flex flex-wrap gap-3">
               {can(profile, 'close.submit') && (
-                <Btn disabled={busy} onClick={() => run('submit_daily_close', { p_date: date, p_notes: notes || null }, open > 0 ? 'Submitted as PROVISIONAL.' : 'Day submitted for approval.')}>
+                <Btn disabled={busy || isOpenDay} onClick={() => run('submit_daily_close', { p_date: date, p_notes: notes || null }, open > 0 ? 'Submitted as PROVISIONAL.' : 'Day submitted for approval.')}>
                   {status === 'returned' || status === 'submitted' || status === 'provisional' ? 'Resubmit close' : 'Submit day close'}</Btn>)}
               {can(profile, 'close.approve') && s.close_id && (status === 'submitted' || status === 'provisional') && (<>
                 <Btn disabled={busy} onClick={() => run('approve_daily_close', { p_id: s.close_id, p_approve: true, p_notes: notes || null }, 'Day approved and locked.')}>Approve</Btn>
                 <Btn kind="danger" disabled={busy} onClick={() => run('approve_daily_close', { p_id: s.close_id, p_approve: false, p_notes: notes || null }, 'Returned to the accountant.')}>Return</Btn></>)}
             </div>
           </div>)}
+        {status !== 'approved' && isOpenDay && <div className="mt-2 text-base text-slate-400">The close can be submitted after the trading day has been ended.</div>}
         {status === 'approved' && <div className="mt-4 rounded-lg bg-green-800 p-3 text-lg font-semibold">This day is approved and locked.</div>}
       </div>
       <div className="rounded-xl bg-slate-800 p-4">
