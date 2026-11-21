@@ -1,7 +1,7 @@
 import { Profile, can } from './supabase'
 import type { IconName } from './icons'
 
-export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'issue' | 'printsheet' | 'mysales' | 'waitersales' | 'bookkeeping' | 'trends'
+export type View = 'home' | 'waiter' | 'myorders' | 'staff' | 'stock' | 'approvals' | 'recon' | 'purchasing' | 'expenses' | 'stockroom' | 'reports' | 'owner' | 'products' | 'stocksheet' | 'issue' | 'printsheet' | 'mysales' | 'waitersales' | 'bookkeeping' | 'trends' | 'gate' | 'redeem'
 
 // The office sidebar groups screens by job. Terminals ignore groups and use `kind` for the tile home.
 export type Group = 'sales' | 'stock' | 'money' | 'reports' | 'admin'
@@ -36,6 +36,8 @@ export function navItems(profile: Profile): NavItem[] {
     item('waiter', 'orders', 'Take orders', 'sales', 'work', can(profile, 'tab.open')),
     item('myorders', 'orders', 'My orders', 'sales', 'work', can(profile, 'tab.open')),
     item('mysales', 'reports', 'My sales', 'sales', 'work', can(profile, 'tab.open')),
+    item('redeem', 'orders', 'Redeem gate pass', 'sales', 'work', can(profile, 'tab.open')),
+    item('gate', 'orders', 'Gate passes', 'sales', 'manage', can(profile, 'close.approve') || can(profile, 'handover.receive')),
 
     item('stock', 'stock', 'Bar stock', 'stock', 'manage', stationPerms.includes('bar') || can(profile, 'stock.view_all')),
     item('issue', 'stockroom', 'Issue to counter', 'stock', 'manage', can(profile, 'goods.receive')),

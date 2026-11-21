@@ -51,8 +51,8 @@ export default function Recon({ profile, onDone }: { profile: Profile; onDone: (
 type P = { date: string; profile: Profile; flash: (m: string, bad?: boolean) => void }
 
 type WSale = { name: string; qty: number; total: number }
-type WSettle = { cash: number; mpesa: number; variance: number; notes: string | null; sales_at_clearing: number; cleared_at: string; cleared_by: string; mpesa_confirmed: boolean }
-type WRow = { waiter_id: string; name: string; staff_no: string; orders: number; sales: number; products: WSale[]; settlement: WSettle | null }
+type WSettle = { passes?: number; cash: number; mpesa: number; variance: number; notes: string | null; sales_at_clearing: number; cleared_at: string; cleared_by: string; mpesa_confirmed: boolean }
+type WRow = { waiter_id: string; name: string; staff_no: string; orders: number; sales: number; passes: number; products: WSale[]; settlement: WSettle | null }
 type Draft = { cash: string; mpesa: string; confirmed: boolean; notes: string }
 const amt = (v: string) => { const x = Number(v.replace(/,/g, '').trim()); return v.trim() === '' ? 0 : Number.isFinite(x) ? x : NaN }
 
@@ -104,6 +104,7 @@ function Waiters({ date, profile, flash }: P) {
   const active = rows.filter(w => w.orders > 0 || w.settlement)
   const quiet = rows.filter(w => w.orders === 0 && !w.settlement)
   const tSales = rows.reduce((t, w) => t + Number(w.sales), 0)
+  const tPass = rows.reduce((t, w) => t + Number(w.passes ?? 0), 0)
   const tCash = cleared.reduce((t, w) => t + Number(w.settlement!.cash), 0)
   const tMp = cleared.reduce((t, w) => t + Number(w.settlement!.mpesa), 0)
   const tVar = cleared.reduce((t, w) => t + Number(w.settlement!.variance), 0)
@@ -113,8 +114,9 @@ function Waiters({ date, profile, flash }: P) {
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {card('Sales (not voided)', kes(tSales))}
+        {card('Paid with gate passes', kes(tPass))}
         {card('Cash handed in', kes(tCash))}
         {card('M-Pesa (till phone)', kes(tMp))}
         {card('Short (+) / over (−), cleared', kes(tVar), tVar > 0 ? 'text-red-400' : tVar < 0 ? 'text-amber-300' : '')}
@@ -132,8 +134,8 @@ function Waiters({ date, profile, flash }: P) {
       {active.map(w => {
         const st = w.settlement, d = dr(w.waiter_id), isOpen = open.has(w.waiter_id)
         const cash = amt(d.cash), mp = amt(d.mpesa)
-        const diff = Number(w.sales) - (Number.isNaN(cash) ? 0 : cash) - (Number.isNaN(mp) ? 0 : mp)
-        const changed = st && Math.abs(Number(st.sales_at_clearing) - Number(w.sales)) > 0.005
+        const diff = Number(w.sales) - Number(w.passes ?? 0) - (Number.isNaN(cash) ? 0 : cash) - (Number.isNaN(mp) ? 0 : mp)
+        const changed = st && (Math.abs(Number(st.sales_at_clearing) - Number(w.sales)) > 0.005 || Math.abs(Number(st.passes ?? 0) - Number(w.passes ?? 0)) > 0.005)
         return (
           <div key={w.waiter_id} className={`rounded-xl p-3 ${st ? 'bg-slate-800 ring-1 ring-green-700' : 'bg-slate-700'}`}>
             <button className="flex w-full flex-wrap items-center gap-3 text-left" onClick={() => toggle(w.waiter_id)} aria-expanded={isOpen}>
@@ -161,13 +163,14 @@ function Waiters({ date, profile, flash }: P) {
                 <div>
                   {st ? (
                     <div className="space-y-1 text-xl">
+                      {Number(st.passes ?? 0) > 0 && <div className="flex justify-between"><span>Paid with gate passes</span><b>{kes(Number(st.passes))}</b></div>}
                       <div className="flex justify-between"><span>Cash handed over</span><b>{kes(st.cash)}</b></div>
                       <div className="flex justify-between"><span>M-Pesa (till phone)</span><b>{kes(st.mpesa)}</b></div>
                       <div className="flex justify-between border-t border-slate-600 pt-1"><span>{Number(st.variance) > 0 ? 'Short' : Number(st.variance) < 0 ? 'Over' : 'Balanced'}</span>
                         <b className={Number(st.variance) > 0 ? 'text-red-400' : Number(st.variance) < 0 ? 'text-amber-300' : 'text-green-400'}>{kes(Math.abs(Number(st.variance)))}</b></div>
                       {st.notes && <div className="text-base text-slate-300">Note: {st.notes}</div>}
                       <div className="text-base text-slate-400">Cleared by {st.cleared_by} at {new Date(st.cleared_at).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' })}</div>
-                      {changed && <div className="rounded bg-amber-600 p-2 text-base font-semibold text-on-accent">Sales changed after clearing (was {kes(st.sales_at_clearing)}, now {kes(w.sales)}). Re-open and clear again.</div>}
+                      {changed && <div className="rounded bg-amber-600 p-2 text-base font-semibold text-on-accent">Sales or gate passes changed after clearing (sales were {kes(st.sales_at_clearing)}, now {kes(w.sales)}). Re-open and clear again.</div>}
                       {canReopen && !locked && (reopen?.id === w.waiter_id ? (
                         <div className="flex flex-wrap gap-2 pt-1">
                           <input className={input + ' min-w-0 flex-1'} placeholder="Why re-open?" value={reopen.reason} onChange={e => setReopen({ id: w.waiter_id, reason: e.target.value })} />
@@ -178,6 +181,7 @@ function Waiters({ date, profile, flash }: P) {
                     </div>
                   ) : canClear && !locked ? (
                     <div className="space-y-2">
+                      {Number(w.passes) > 0 && <div className="flex justify-between rounded-lg bg-slate-800 p-2 text-lg"><span>Paid with gate passes (not cash)</span><b>{kes(Number(w.passes))}</b></div>}
                       <label className="block text-lg">Cash handed over (KES)
                         <input className={input + ' mt-1 w-full'} inputMode="decimal" value={d.cash} onChange={e => set(w.waiter_id, { cash: e.target.value })} placeholder="0" /></label>
                       <label className="block text-lg">M-Pesa total from the till phone (KES)

@@ -156,6 +156,46 @@ export function encodeCaptain(d: CaptainData, at: Date = new Date()): Uint8Array
   return Uint8Array.from(bytes)
 }
 
+// ───────────── Gate pass: entry paid at the gate, redeemed for drinks at the counter ─────────────
+export type PassData = { code: string; amount: number; dateLabel: string; soldBy: string; n?: number; of?: number; copy?: boolean }
+
+export function encodePass(d: PassData, at: Date = new Date()): Uint8Array {
+  const bytes: number[] = []
+  const raw = (...b: number[]) => bytes.push(...b)
+  const text = (s: string) => { for (const ch of s) bytes.push(ch.charCodeAt(0)) }
+  const line = (s = '') => { text(s); raw(LF) }
+  const align = (n: 0 | 1 | 2) => raw(ESC, 0x61, n)
+  const bold = (on: boolean) => raw(ESC, 0x45, on ? 1 : 0)
+  const size = (n: number) => raw(GS, 0x21, n)
+  const rule = (ch = '-') => line(ch.repeat(paperCols))
+  const code = `${d.code.slice(0, 3)} ${d.code.slice(3)}`
+
+  raw(ESC, 0x40)
+  align(1); bold(true); size(0x11); line('THE GLIZZ LOUNGE'); size(0x00)
+  line('Chuka-Ndagani'); rule('=')
+  size(0x11); line('GATE PASS'); size(0x00); bold(false)
+  if (d.copy) line('** REPRINT **')
+  rule('=')
+  bold(true); size(0x22); line(`KES ${Number(d.amount).toLocaleString('en-KE')}`); size(0x00); bold(false)
+  line('in drinks at the counter')
+  line()
+  line('Pass code'); bold(true); size(0x22); line(code); size(0x00); bold(false)
+  line()
+  align(0); rule()
+  for (const t of twoColumn('Valid:', clean(d.dateLabel))) line(t)
+  for (const t of twoColumn('Sold by:', clean(d.soldBy))) line(t)
+  for (const t of twoColumn(clean(at.toLocaleString('en-KE')), d.n && d.of && d.of > 1 ? `${d.n}/${d.of}` : '')) line(t)
+  rule()
+  align(1)
+  line('Show this to the counter.')
+  line('Any drink. One night only.')
+  line('Not refundable. Do not lose it.')
+  align(0)
+  raw(ESC, 0x64, 5)
+  raw(GS, 0x56, 0x01)
+  return Uint8Array.from(bytes)
+}
+
 // ───────────── Daily stock sheet (handwritten): one block per drink with blanks to fill in ─────────────
 export type SheetItem = { name: string; price: number | null; opening: number | null }
 export type SheetSection = { category: string; items: SheetItem[] }
