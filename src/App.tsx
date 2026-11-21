@@ -14,6 +14,8 @@ import StockRoom from './StockRoom'
 import Reports from './Reports'
 import OwnerReports from './OwnerReports'
 import Trends from './Trends'
+import GatePasses from './GatePasses'
+import RedeemPass from './RedeemPass'
 import Bookkeeping from './Bookkeeping'
 import Products from './Products'
 import StockSheet from './StockSheet'
@@ -135,6 +137,8 @@ export default function App() {
       {view === 'reports' && <Reports profile={p} onDone={home} />}
       {view === 'owner' && <OwnerReports profile={p} onDone={home} />}
       {view === 'trends' && <Trends profile={p} onDone={home} />}
+      {view === 'gate' && <GatePasses profile={p} onDone={home} />}
+      {view === 'redeem' && <RedeemPass profile={p} onDone={home} />}
       {view === 'bookkeeping' && <Bookkeeping profile={p} onDone={home} />}
       {view === 'products' && <Products profile={p} onDone={home} />}
       {view === 'issue' && <IssueToCounter profile={p} onDone={home} />}

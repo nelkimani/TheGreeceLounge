@@ -2,8 +2,8 @@
 // difference. Printed on A4 (or saved as PDF from the print window) or downloaded as a CSV for Excel.
 
 export type SummarySale = { name: string; qty: number; total: number }
-export type SummarySettle = { cash: number; mpesa: number; variance: number; notes: string | null; cleared_at: string; cleared_by: string }
-export type SummaryWaiter = { name: string; staff_no: string; orders: number; sales: number; products: SummarySale[]; settlement: SummarySettle | null; draft?: { cash: number; mpesa: number } | null }
+export type SummarySettle = { passes?: number; cash: number; mpesa: number; variance: number; notes: string | null; cleared_at: string; cleared_by: string }
+export type SummaryWaiter = { name: string; staff_no: string; orders: number; sales: number; passes?: number; products: SummarySale[]; settlement: SummarySettle | null; draft?: { cash: number; mpesa: number } | null }
 
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
 const money = (n: number) => Number(n ?? 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -16,6 +16,7 @@ export function summaryTotals(ws: SummaryWaiter[]) {
   const done = ws.filter(w => w.settlement)
   return {
     sales: ws.reduce((t, w) => t + Number(w.sales), 0),
+    passes: ws.reduce((t, w) => t + Number(w.passes ?? 0), 0),
     cash: done.reduce((t, w) => t + Number(w.settlement!.cash), 0),
     mpesa: done.reduce((t, w) => t + Number(w.settlement!.mpesa), 0),
     variance: done.reduce((t, w) => t + Number(w.settlement!.variance), 0),
@@ -39,7 +40,7 @@ export function buildDaySummaryHtml(date: string, all: SummaryWaiter[], printedB
   const prods = productTotals(ws)
   const rows = ws.map(w => {
     const s = w.settlement
-    return `<tr><td>${esc(w.name)} <span class="m">${esc(w.staff_no)}</span></td><td class="r">${w.orders}</td><td class="r">${money(w.sales)}</td>` +
+    return `<tr><td>${esc(w.name)} <span class="m">${esc(w.staff_no)}</span></td><td class="r">${w.orders}</td><td class="r">${money(w.sales)}</td><td class="r">${money(Number(w.passes ?? 0))}</td>` +
       (s ? `<td class="r">${money(s.cash)}</td><td class="r">${money(s.mpesa)}</td><td class="r ${s.variance > 0 ? 'bad' : ''}">${esc(vlabel(Number(s.variance)))}</td>` +
            `<td>${esc(s.notes ?? '')}<div class="m">${esc(s.cleared_by)} ${hhmm(s.cleared_at)}</div></td>`
          : `<td colspan="4" class="bad"><b>NOT CLEARED</b>${w.draft ? ` <span class="m">(part paid so far: cash ${money(w.draft.cash)}, M-Pesa ${money(w.draft.mpesa)})</span>` : ''}</td>`) + `</tr>`
@@ -63,13 +64,13 @@ export function buildDaySummaryHtml(date: string, all: SummaryWaiter[], printedB
   </style></head><body>
   <div class="head"><div><h1>THE GLIZZ LOUNGE</h1><div>Day summary · <b>${esc(dateLabel(date))}</b></div></div>
     <div class="m r">Printed ${esc(new Date().toLocaleString('en-KE', { dateStyle: 'medium', timeStyle: 'short' }))}<br>by ${esc(printedBy)}</div></div>
-  <div class="cards"><div>Sales (not voided)<b>${money(t.sales)}</b></div><div>Cash handed in<b>${money(t.cash)}</b></div>
-    <div>M-Pesa (till phone)<b>${money(t.mpesa)}</b></div><div>Cash + M-Pesa<b>${money(t.cash + t.mpesa)}</b></div>
+  <div class="cards"><div>Sales (not voided)<b>${money(t.sales)}</b></div><div>Gate passes used<b>${money(t.passes)}</b></div>
+    <div>Cash handed in<b>${money(t.cash)}</b></div><div>M-Pesa (till phone)<b>${money(t.mpesa)}</b></div>
     <div>${t.variance > 0 ? 'Short' : t.variance < 0 ? 'Over' : 'Balanced'}<b class="${t.variance > 0 ? 'bad' : ''}">${money(Math.abs(t.variance))}</b></div></div>
   ${open.length ? `<div class="warn">${open.length} of ${ws.length} waiters NOT cleared: ${esc(open.map(w => w.name).join(', '))}. Totals above cover cleared waiters only (sales cover everyone).</div>` : ''}
   <h2>Waiters</h2>
-  <table><tr><th>Waiter</th><th class="r">Orders</th><th class="r">Sales</th><th class="r">Cash</th><th class="r">M-Pesa</th><th class="r">Result</th><th>Note / cleared by</th></tr>
-  ${rows}<tr class="tot"><td>Total (${t.cleared} of ${t.total} cleared)</td><td class="r">${ws.reduce((n, w) => n + Number(w.orders), 0)}</td><td class="r">${money(t.sales)}</td><td class="r">${money(t.cash)}</td><td class="r">${money(t.mpesa)}</td><td class="r">${esc(vlabel(t.variance))}</td><td></td></tr></table>
+  <table><tr><th>Waiter</th><th class="r">Orders</th><th class="r">Sales</th><th class="r">Gate passes</th><th class="r">Cash</th><th class="r">M-Pesa</th><th class="r">Result</th><th>Note / cleared by</th></tr>
+  ${rows}<tr class="tot"><td>Total (${t.cleared} of ${t.total} cleared)</td><td class="r">${ws.reduce((n, w) => n + Number(w.orders), 0)}</td><td class="r">${money(t.sales)}</td><td class="r">${money(t.passes)}</td><td class="r">${money(t.cash)}</td><td class="r">${money(t.mpesa)}</td><td class="r">${esc(vlabel(t.variance))}</td><td></td></tr></table>
   <h2>Everything sold</h2>
   <table class="d">${prods.map(p => `<tr><td>${esc(p.name)}</td><td class="r q">× ${qtyFmt(p.qty)}</td><td class="r">${money(p.total)}</td></tr>`).join('')}
   <tr class="tot"><td>Total</td><td class="r q">× ${qtyFmt(prods.reduce((n, p) => n + p.qty, 0))}</td><td class="r">${money(t.sales)}</td></tr></table>
@@ -92,10 +93,10 @@ export function printHtml(html: string) {
 export function downloadDaySummaryCsv(date: string, all: SummaryWaiter[]) {
   const ws = all.filter(w => w.orders > 0 || w.settlement)
   const q = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
-  const lines: string[] = [['Waiter', 'Staff no', 'Orders', 'Sales', 'Cash handed in', 'M-Pesa', 'Short(+)/Over(-)', 'Status', 'Note', 'Cleared by'].map(q).join(',')]
+  const lines: string[] = [['Waiter', 'Staff no', 'Orders', 'Sales', 'Gate passes', 'Cash handed in', 'M-Pesa', 'Short(+)/Over(-)', 'Status', 'Note', 'Cleared by'].map(q).join(',')]
   for (const w of ws) {
     const s = w.settlement
-    lines.push([w.name, w.staff_no, w.orders, w.sales, s?.cash ?? '', s?.mpesa ?? '', s?.variance ?? '', s ? 'Cleared' : 'NOT CLEARED', s?.notes ?? '', s?.cleared_by ?? ''].map(q).join(','))
+    lines.push([w.name, w.staff_no, w.orders, w.sales, w.passes ?? 0, s?.cash ?? '', s?.mpesa ?? '', s?.variance ?? '', s ? 'Cleared' : 'NOT CLEARED', s?.notes ?? '', s?.cleared_by ?? ''].map(q).join(','))
   }
   lines.push('', ['Waiter', 'Product', 'Qty', 'Amount'].map(q).join(','))
   for (const w of ws) for (const p of w.products) lines.push([w.name, p.name, p.qty, p.total].map(q).join(','))
