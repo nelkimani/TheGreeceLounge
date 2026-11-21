@@ -7,7 +7,7 @@ import { tradingDate } from './tradingDay'
 type Row = { id: string; business_date: string; category: string; amount: number; description: string; receipt_ref: string | null; recorded_by_name: string; voided: boolean; void_reason: string | null }
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 const CATS = ['Transport', 'Charcoal', 'Gas', 'Cleaning', 'Repairs', 'Airtime', 'Other']
-const today = () => tradingDate()
+const today = tradingDate
 
 export default function Expenses({ profile, onDone }: { profile: Profile; onDone: () => void }) {
   const [rows, setRows] = useState<Row[]>([])

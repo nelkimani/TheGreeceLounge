@@ -11,8 +11,8 @@ export type Col = { key: string; label: string; fmt?: 'kes' | 'num' | 'pct' | 't
 type Data = any
 
 export const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
-// The trading day rolls over at 08:00 Nairobi (see tradingDay.ts).
-export const today = () => tradingDate()
+// The open trading day (closed by hand since migration 047).
+export const today = tradingDate
 export const addDays = (d: string, n: number) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400_000).toISOString().slice(0, 10)
 export const monthStart = (d: string) => d.slice(0, 8) + '01'
 export const weekStart = (d: string) => addDays(d, -((new Date(d + 'T00:00:00Z').getUTCDay() + 6) % 7))   // Monday
@@ -192,13 +192,13 @@ function SalesLog({ d }: { d: Data }) {
     <div className="space-y-4">
       <div className="flex flex-wrap gap-3">
         <Card label="Sales in the log" value={kes(d.total)} sub={`${rows.length} lines`} />
-        <Card label="Voided orders" value={String(voids.length)} tone={voids.length > 0 ? 'warn' : undefined} />
+        <Card label="Voids (slips and items)" value={String(voids.length)} tone={voids.length > 0 ? 'warn' : undefined} />
       </div>
       <Table title="Every sale: who sold what, and when" file="sales-log" rows={rows} empty="No sales in this period."
         cols={[{ key: 'when', label: 'Time' }, { key: 'order_no', label: 'Order', fmt: 'num' }, { key: 'slip_no', label: 'Slip', fmt: 'num' }, { key: 'station', label: 'Station' }, { key: 'waiter', label: 'Waiter' }, { key: 'place', label: 'Table / name' }, { key: 'product', label: 'Product' }, { key: 'qty', label: 'Qty', fmt: 'num' }, { key: 'unit_price', label: 'Price', fmt: 'kes' }, { key: 'total', label: 'Total', fmt: 'kes' }]}
         total={rows.length ? { when: 'Total', total: d.total } : undefined} />
-      <Table title="Voided orders" file="sales-voids" rows={voids} empty="No voids in this period."
-        cols={[{ key: 'when', label: 'Time' }, { key: 'slip_no', label: 'Slip', fmt: 'num' }, { key: 'station', label: 'Station' }, { key: 'waiter', label: 'Waiter' }, { key: 'voided_by', label: 'Approved by' }, { key: 'reason', label: 'Reason' }, { key: 'total', label: 'Value', fmt: 'kes' }]} />
+      <Table title="Voids (whole slips and single items)" file="sales-voids" rows={voids} empty="No voids in this period."
+        cols={[{ key: 'when', label: 'Time' }, { key: 'slip_no', label: 'Slip', fmt: 'num' }, { key: 'station', label: 'Station' }, { key: 'item', label: 'What was voided' }, { key: 'waiter', label: 'Waiter' }, { key: 'voided_by', label: 'Approved by' }, { key: 'reason', label: 'Reason' }, { key: 'total', label: 'Value', fmt: 'kes' }]} />
       <div className="text-base text-slate-400">The sale time is when the waiter sent the order. The log covers up to 32 days at a time. Voided orders are not counted as sales.</div>
     </div>
   )
