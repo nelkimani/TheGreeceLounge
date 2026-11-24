@@ -10,7 +10,9 @@ export type Entry = { id: string; at: string; product: string; qty: number; orig
 const n = (x: number) => Number(x).toLocaleString('en-KE', { maximumFractionDigits: 3 })
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 
-export default function EntryHistory({ rows, canEdit, empty, onChanged }: { rows: Entry[]; canEdit: boolean; empty: string; onChanged: () => void }) {
+// canEdit: true for a manager (any entry), or a function deciding per entry (the person who made it, same day).
+export default function EntryHistory({ rows, canEdit, empty, onChanged }: { rows: Entry[]; canEdit: boolean | ((e: Entry) => boolean); empty: string; onChanged: () => void }) {
+  const mayEdit = (e: Entry) => typeof canEdit === 'function' ? canEdit(e) : canEdit
   const [open, setOpen] = useState<string | null>(null)
   const [qty, setQty] = useState('')
   const [why, setWhy] = useState('')
@@ -40,7 +42,7 @@ export default function EntryHistory({ rows, canEdit, empty, onChanged }: { rows
             {h.edited && <span className="rounded bg-slate-600 px-2 text-sm font-semibold">{Number(h.qty) === 0 ? 'Cancelled' : 'Edited'} · was {n(h.original_qty)}</span>}
             <span className="text-slate-400">{new Date(h.at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
             <span className="text-slate-300">{h.by ?? ''}{h.note ? ` · ${h.note}` : ''}</span>
-            {canEdit && open !== h.id && <Btn kind="ghost" className="!h-11 !text-base" onClick={() => start(h)}>Edit</Btn>}
+            {mayEdit(h) && open !== h.id && <Btn kind="ghost" className="!h-11 !text-base" onClick={() => start(h)}>Edit</Btn>}
           </div>
           {open === h.id && (
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-700 pt-3">
