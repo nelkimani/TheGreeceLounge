@@ -17,7 +17,8 @@ export default function IssueToStore({ onDone }: { profile: Profile; onDone: () 
   const [rows, setRows] = useState<Row[]>([])
   const [history, setHistory] = useState<Issue[]>([])
   const [qty, setQty] = useState<Record<string, string>>({})
-  const [q, setQ] = useState('')
+  const [q, setQ] = useState('')          // the search that is applied
+  const [draft, setDraft] = useState('')   // what is typed in the box
   const [cat, setCat] = useState('')
   const [note, setNote] = useState('')
   const [loading, setLoading] = useState(true)
@@ -35,8 +36,9 @@ export default function IssueToStore({ onDone }: { profile: Profile; onDone: () 
   useEffect(() => { load() }, [load])
 
   const cats = useMemo(() => [...new Set(rows.map(r => r.category).filter((c): c is string => !!c))].sort(), [rows])
+  const catCount = useMemo(() => { const m = new Map<string, number>(); rows.forEach(r => { const k = r.category ?? '__none'; m.set(k, (m.get(k) ?? 0) + 1) }); return m }, [rows])
   const shown = useMemo(() => rows.filter(r =>
-    (!cat || r.category === cat)
+    (!cat || (cat === '__none' ? !r.category : r.category === cat))
     && (!q.trim() || r.name.toLowerCase().includes(q.trim().toLowerCase()))), [rows, cat, q])
 
   const lines = rows.filter(r => Number(qty[r.product_id]) > 0)
@@ -92,11 +94,19 @@ export default function IssueToStore({ onDone }: { profile: Profile; onDone: () 
         </div>
       ) : (
         <>
-          <div className="mb-3 flex flex-wrap items-center gap-3">
-            <input className={input + ' w-full md:w-72'} placeholder="Search drinks" value={q} onChange={e => setQ(e.target.value)} />
-            <select className={input + ' w-full md:w-52'} value={cat} onChange={e => setCat(e.target.value)}>
-              <option value="">All categories</option>{cats.map(c => <option key={c} value={c}>{c}</option>)}</select>
+          <form className="mb-2 flex gap-2" onSubmit={e => { e.preventDefault(); setQ(draft) }}>
+            <input className={input + ' min-w-0 flex-1 md:max-w-md'} placeholder="Search drinks" value={draft}
+                   onChange={e => { setDraft(e.target.value); setQ(e.target.value) }} aria-label="Search drinks" />
+            <Btn onClick={() => setQ(draft)}>Search</Btn>
+            {(draft || q) && <Btn kind="ghost" onClick={() => { setDraft(''); setQ('') }}>Clear</Btn>}
+          </form>
+          <div className="mb-3 flex flex-wrap gap-2">
+            {[['', 'All', rows.length] as const, ...cats.map(c => [c, c, catCount.get(c) ?? 0] as const),
+              ...(catCount.has('__none') ? [['__none', 'No category', catCount.get('__none') ?? 0] as const] : [])].map(([id, label, count]) => (
+              <button key={id} type="button" onClick={() => setCat(id)}
+                className={`h-11 rounded-full px-4 text-base font-semibold ${cat === id ? 'bg-amber-500 text-on-accent' : 'bg-slate-700'}`}>{label} <span className="opacity-70">{count}</span></button>))}
           </div>
+          <div className="mb-2 text-sm text-slate-400">Showing {shown.length} of {rows.length} drinks{lines.length > 0 ? ` · ${lines.length} with a quantity entered (kept while you search)` : ''}</div>
           <div className="hidden grid-cols-[1fr_90px_90px_120px] gap-3 px-3 text-sm text-slate-400 md:grid"><span>Drink</span><span className="text-right">Store</span><span className="text-right">Counter</span><span>Receive</span></div>
           <div className="space-y-2">
             {shown.length === 0 && <div className="text-xl text-slate-400">No drinks match.</div>}

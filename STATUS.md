@@ -123,3 +123,5 @@ Phase 7 production readiness · UI polish pass
 
 - Reprints are manager-only: waiters and the counter can no longer reprint a receipt or captain slip (My orders buttons removed; the Sale screen allows each paper to print once for them). VOID slips still print once. No SQL to run.
 - Issue to store (migration 051): new stock is put into the store first (Stock > Issue to store), then moved with Issue to counter. Bar stock "Add stock" for a delivery now also lands in the store; only opening stock goes straight to the counter.
+
+- Issue to store: Search button, Clear, and category buttons with counts.
