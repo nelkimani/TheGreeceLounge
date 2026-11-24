@@ -17,7 +17,7 @@ export default function BarStock({ profile, onDone }: { profile: Profile; onDone
   const [qty, setQty] = useState('')
   const [reason, setReason] = useState('')
   const [outType, setOutType] = useState('wastage')
-  const [inType, setInType] = useState('purchase')
+  const [inType, setInType] = useState('opening')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [bad, setBad] = useState(false)
@@ -93,7 +93,8 @@ export default function BarStock({ profile, onDone }: { profile: Profile; onDone
             <div className="text-2xl font-bold">{sel.name}</div>
             <div className="text-lg text-slate-300">In the bar now: {Number(sel.on_hand)} {sel.base_unit}</div>
             {can(profile, 'stock.count') && <Btn onClick={() => open('count')}>Count stock</Btn>}
-            {canIn && <Btn kind="ghost" onClick={() => open('in')}>Add stock (delivery / opening)</Btn>}
+            {direct && <Btn kind="ghost" onClick={() => open('in')}>Add opening stock</Btn>}
+            {canIn && <div className="text-sm text-slate-400">New deliveries go into the store first: use Issue to store, then Issue to counter.</div>}
             {(direct || can(profile, 'station.bar')) && <Btn kind="ghost" onClick={() => open('out')}>{direct ? 'Wastage / breakage / complimentary' : 'Request wastage / breakage'}</Btn>}
           </div>
         )}
@@ -101,8 +102,7 @@ export default function BarStock({ profile, onDone }: { profile: Profile; onDone
           <div className="flex flex-col gap-3">
             <div className="text-2xl font-bold">{sel.name} — {mode === 'count' ? 'count' : mode === 'in' ? 'add stock' : direct ? 'stock out' : 'request stock out'}</div>
             {mode === 'out' && <div className="flex flex-wrap gap-2">{OUT_TYPES.map(([c, n]) => chip(n, outType === c, () => setOutType(c)))}</div>}
-            {mode === 'in' && <div className="flex gap-2">{chip('Delivery', inType === 'purchase', () => setInType('purchase'))}
-              {can(profile, 'stock.adjust') && chip('Opening stock', inType === 'opening', () => setInType('opening'))}</div>}
+            {mode === 'in' && <div className="flex gap-2">{chip('Opening stock', true, () => setInType('opening'))}</div>}
             <div className="h-btn rounded-xl border-2 border-amber-500 bg-slate-900 px-4 text-4xl font-bold leading-[var(--btn-h)]">
               {qty ? `${q} ${sel.base_unit}` : <span className="text-xl font-normal text-slate-500">{mode === 'count' ? 'Quantity counted' : 'Quantity'}</span>}</div>
             <Keypad onDigit={d => setQty(v => (v + d).replace(/^0+(?=\d)/, '').slice(0, 6))} onBack={() => setQty(v => v.slice(0, -1))} onClear={() => setQty('')} />

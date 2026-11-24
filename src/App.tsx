@@ -22,6 +22,7 @@ import StockSheet from './StockSheet'
 import MySales from './MySales'
 import WaiterSales from './WaiterSales'
 import IssueToCounter from './IssueToCounter'
+import IssueToStore from './IssueToStore'
 import PrintStockSheet from './PrintStockSheet'
 import OfficeShell from './OfficeShell'
 import { GROUPS, NavItem, View, navId, navItems } from './nav'
@@ -142,6 +143,7 @@ export default function App() {
       {view === 'bookkeeping' && <Bookkeeping profile={p} onDone={home} />}
       {view === 'products' && <Products profile={p} onDone={home} />}
       {view === 'issue' && <IssueToCounter profile={p} onDone={home} />}
+      {view === 'issuestore' && <IssueToStore profile={p} onDone={home} />}
       {view === 'stocksheet' && <StockSheet profile={p} onDone={home} />}
       {view === 'printsheet' && <PrintStockSheet profile={p} onDone={home} />}
       {view === 'staff' && (
