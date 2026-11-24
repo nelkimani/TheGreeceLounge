@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase, Profile } from './supabase'
+import { supabase, Profile, can } from './supabase'
 import { Btn, HomeBtn } from './ui'
 import { confirmDialog, toast } from './feedback'
 import { uid } from './lib'
+import EntryHistory, { Entry } from './EntryHistory'
 
 // Stock flow: new drinks are put into the STORE here first. Then "Issue to counter" moves part of it to the counter,
 // which is what the waiters sell from. Quantities only; use Purchasing when the prices paid must be recorded.
 
 type Row = { product_id: string; name: string; category: string | null; base_unit: string; store_qty: number; counter_qty: number; reorder_level: number | null }
-type Issue = { at: string; product: string; qty: number; base_unit: string; received_by: string | null; note: string | null }
 const input = 'h-12 rounded-lg border border-slate-500 bg-slate-900 px-3 text-lg'
 const n = (x: number) => Number(x).toLocaleString('en-KE', { maximumFractionDigits: 3 })
 
-export default function IssueToStore({ onDone }: { profile: Profile; onDone: () => void }) {
+export default function IssueToStore({ profile, onDone }: { profile: Profile; onDone: () => void }) {
   const [tab, setTab] = useState<'issue' | 'history'>('issue')
   const [rows, setRows] = useState<Row[]>([])
-  const [history, setHistory] = useState<Issue[]>([])
+  const [history, setHistory] = useState<Entry[]>([])
   const [qty, setQty] = useState<Record<string, string>>({})
   const [q, setQ] = useState('')          // the search that is applied
   const [draft, setDraft] = useState('')   // what is typed in the box
@@ -30,7 +30,7 @@ export default function IssueToStore({ onDone }: { profile: Profile; onDone: () 
   const load = useCallback(async () => {
     const [o, h] = await Promise.all([supabase.rpc('stock_overview'), supabase.rpc('store_receipt_history', { p_days: 14 })])
     if (o.error) setErr(o.error.message); else setRows((o.data ?? []) as Row[])
-    if (!h.error) setHistory((h.data ?? []) as Issue[])
+    if (!h.error) setHistory(((h.data ?? []) as (Omit<Entry, 'by'> & Record<string, unknown>)[]).map(x => ({ ...x, by: (x as Record<string, unknown>)['received_by'] as string | null })) as Entry[])
     setLoading(false)
   }, [])
   useEffect(() => { load() }, [load])
@@ -82,16 +82,7 @@ export default function IssueToStore({ onDone }: { profile: Profile; onDone: () 
         </section>)}
 
       {loading ? <div className="text-slate-400">Loading…</div> : tab === 'history' ? (
-        <div className="space-y-2">
-          {history.length === 0 && <div className="text-xl text-slate-400">Nothing has been put into the store in the last 14 days.</div>}
-          {history.map((h, i) => (
-            <div key={i} className="flex flex-wrap items-center gap-3 rounded-xl bg-slate-800 p-3 text-lg">
-              <span className="min-w-0 flex-1 font-semibold">{h.product}</span>
-              <b className="tabular-nums">{n(h.qty)} {h.base_unit}</b>
-              <span className="text-slate-400">{new Date(h.at).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-              <span className="text-slate-300">{h.received_by ?? ''}{h.note ? ` · ${h.note}` : ''}</span>
-            </div>))}
-        </div>
+        <EntryHistory rows={history} canEdit={can(profile, 'close.approve')} empty="Nothing has been put into the store in the last 14 days." onChanged={load} />
       ) : (
         <>
           <form className="mb-2 flex gap-2" onSubmit={e => { e.preventDefault(); setQ(draft) }}>

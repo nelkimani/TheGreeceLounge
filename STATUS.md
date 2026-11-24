@@ -125,3 +125,5 @@ Phase 7 production readiness · UI polish pass
 - Issue to store (migration 051): new stock is put into the store first (Stock > Issue to store), then moved with Issue to counter. Bar stock "Add stock" for a delivery now also lands in the store; only opening stock goes straight to the counter.
 
 - Issue to store: Search button, Clear, and category buttons with counts.
+
+- Edit in Issue to store / Issue to counter (migration 052): a manager can edit the quantity of an entry in History (or set 0 to cancel), with a reason. Stock moves by the difference; the old figure stays on record.
