@@ -127,3 +127,5 @@ Phase 7 production readiness · UI polish pass
 - Issue to store: Search button, Clear, and category buttons with counts.
 
 - Edit in Issue to store / Issue to counter (migration 052): a manager can edit the quantity of an entry in History (or set 0 to cancel), with a reason. Stock moves by the difference; the old figure stays on record.
+
+- Edit right on the screen (migration 053): Issue to store / Issue to counter show the last 24 hours of entries at the top with an Edit button. The person who made an entry can correct it for 24 hours; a manager can edit any entry. Run 053 after 052.

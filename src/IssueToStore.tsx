@@ -26,6 +26,9 @@ export default function IssueToStore({ profile, onDone }: { profile: Profile; on
   const [err, setErr] = useState('')
   const [problems, setProblems] = useState<{ name: string; problem: string }[]>([])
   const key = useRef(uid())
+  // a manager edits any entry; anyone else can correct their own entries for 24 hours
+  const isManager = can(profile, 'close.approve')
+  const canEdit = (e: Entry) => isManager || (e.by === profile.full_name && Date.now() - new Date(e.at).getTime() < 24 * 3600 * 1000)
 
   const load = useCallback(async () => {
     const [o, h] = await Promise.all([supabase.rpc('stock_overview'), supabase.rpc('store_receipt_history', { p_days: 14 })])
@@ -82,9 +85,14 @@ export default function IssueToStore({ profile, onDone }: { profile: Profile; on
         </section>)}
 
       {loading ? <div className="text-slate-400">Loading…</div> : tab === 'history' ? (
-        <EntryHistory rows={history} canEdit={can(profile, 'close.approve')} empty="Nothing has been put into the store in the last 14 days." onChanged={load} />
+        <EntryHistory rows={history} canEdit={canEdit} empty="Nothing has been put into the store in the last 14 days." onChanged={load} />
       ) : (
         <>
+          {history.some(h => Date.now() - new Date(h.at).getTime() < 24 * 3600 * 1000 && canEdit(h)) && (
+            <section className="mb-4 rounded-xl border border-slate-600 bg-slate-800/50 p-3">
+              <h3 className="mb-2 text-xl font-bold">Entered in the last 24 hours <span className="text-base font-normal text-slate-400">· made a mistake? tap Edit</span></h3>
+              <EntryHistory rows={history.filter(h => Date.now() - new Date(h.at).getTime() < 24 * 3600 * 1000)} canEdit={canEdit} empty="" onChanged={load} />
+            </section>)}
           <form className="mb-2 flex gap-2" onSubmit={e => { e.preventDefault(); setQ(draft) }}>
             <input className={input + ' min-w-0 flex-1 md:max-w-md'} placeholder="Search drinks" value={draft}
                    onChange={e => { setDraft(e.target.value); setQ(e.target.value) }} aria-label="Search drinks" />
