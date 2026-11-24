@@ -8,13 +8,14 @@ import { ReceiptPreview, SlipPreview } from './SalePreview'
 
 // Shown after SEND (and for reprints). The customer receipt and every captain order print on THIS terminal;
 // the waiter carries each captain order to its station. Printing only prints: it never records a second sale.
-export default function SaleDone({ sale, onDone, reprint = false, hideReceipt = false }:
-  { sale: Sale; onDone: () => void; reprint?: boolean; hideReceipt?: boolean }) {
+// Only a manager may print the same paper a second time (canReprint). A VOID slip is new paper, so it prints once for anyone.
+export default function SaleDone({ sale, onDone, reprint = false, hideReceipt = false, canReprint = false, voidSlip = false }:
+  { sale: Sale; onDone: () => void; reprint?: boolean; hideReceipt?: boolean; canReprint?: boolean; voidSlip?: boolean }) {
   const slips = hideReceipt ? sale.slips : liveSlips(sale)
   const [sel, setSel] = useState<string>(hideReceipt ? (slips[0]?.id ?? 'receipt') : 'receipt')
   const [msg, setMsg] = useState('')
   // A second print of the same paper is a reprint and is logged against the order.
-  const printed = useRef<Set<string>>(new Set(reprint ? ['receipt', ...sale.slips.map(s => s.id)] : []))
+  const printed = useRef<Set<string>>(new Set(reprint && !voidSlip ? ['receipt', ...sale.slips.map(s => s.id)] : []))
   const auto = useRef(false)
 
   useEffect(() => {
@@ -29,6 +30,7 @@ export default function SaleDone({ sale, onDone, reprint = false, hideReceipt = 
 
   const printOne = async (id: string) => {
     const again = printed.current.has(id)
+    if (again && !canReprint) { setMsg('This has already been printed. Only a manager can reprint.'); return }
     if (again) await supabase.rpc('log_reprint', { p_order: sale.order_id, p_captain: id === 'receipt' ? null : id })
     const slip = slips.find(s => s.id === id)
     const bytes = id === 'receipt' ? receiptBytes(sale, again) : slip ? slipBytes(sale, slip, again) : null
@@ -38,6 +40,7 @@ export default function SaleDone({ sale, onDone, reprint = false, hideReceipt = 
     printed.current.add(id)
   }
   const printAll = async () => {
+    if (!canReprint) return
     for (const id of [...(hideReceipt ? [] : ['receipt']), ...slips.map(s => s.id)]) await printOne(id)
   }
 
@@ -64,12 +67,12 @@ export default function SaleDone({ sale, onDone, reprint = false, hideReceipt = 
       {sel === 'receipt' && !hideReceipt ? <ReceiptPreview sale={sale} /> : slip ? <SlipPreview sale={sale} slip={slip} /> : null}
       {msg && <div className="max-w-xl text-center text-lg text-slate-300">{msg}</div>}
       <div className="flex flex-wrap justify-center gap-3">
-        <Btn kind="ghost" onClick={() => printOne(sel)}>Print this</Btn>
-        <Btn kind="ghost" onClick={printAll}>Print all</Btn>
+        {(canReprint || !printed.current.has(sel)) && <Btn kind="ghost" onClick={() => printOne(sel)}>Print this</Btn>}
+        {canReprint && <Btn kind="ghost" onClick={printAll}>Print all</Btn>}
         <Btn onClick={onDone}>Done</Btn>
       </div>
       <PrinterControl />
-      <div className="text-sm text-slate-400">Printing only prints. It never records the sale a second time.</div>
+      <div className="text-sm text-slate-400">Printing only prints. It never records the sale a second time. Only a manager can reprint.</div>
     </div>
   )
 }

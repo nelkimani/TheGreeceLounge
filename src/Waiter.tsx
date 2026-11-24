@@ -66,7 +66,7 @@ export default function Waiter({ profile, onDone, onLock }: { profile: Profile; 
   }, [flush])
 
   if (sale) {
-    return <SaleDone sale={sale} onDone={() => { setSale(null); setTarget(null); if (LOCK_AFTER_SEND) onLock(); else onDone() }} />
+    return <SaleDone sale={sale} canReprint={can(profile, 'close.approve')} onDone={() => { setSale(null); setTarget(null); if (LOCK_AFTER_SEND) onLock(); else onDone() }} />
   }
   if (target) {
     return <OrderScreen profile={profile} target={target} products={products} counter={counter}
