@@ -38,10 +38,11 @@ const toSale = (o: Order, slips: Row[], markVoid = false, onlyLines?: Line[]): S
 // The counter (bartender) and managers (order.void) can void ITEMS; only a manager (approval.grant) can void a whole slip or
 // receipt. Waiters have no Void button (migrations 035, 046 and 049 enforce it in the database too).
 export default function MyOrders({ profile, onDone }: { profile: Profile; onDone: () => void }) {
+  const canReprint = can(profile, 'close.approve')         // only a manager reprints
   const canVoid = can(profile, 'approval.grant')          // whole slip / whole receipt
   const canVoidItem = can(profile, 'order.void')           // single items (counter + manager)
   const [orders, setOrders] = useState<Order[]>([])
-  const [view, setView] = useState<{ sale: Sale; hideReceipt: boolean } | null>(null)
+  const [view, setView] = useState<{ sale: Sale; hideReceipt: boolean; voidSlip?: boolean } | null>(null)
   const [voidFor, setVoidFor] = useState<Target | null>(null)
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
@@ -74,7 +75,7 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
     setVoidFor(null); setReason(''); key.current = uid(); load()
   }
 
-  if (view) return <SaleDone sale={view.sale} reprint hideReceipt={view.hideReceipt} onDone={() => setView(null)} />
+  if (view) return <SaleDone sale={view.sale} reprint hideReceipt={view.hideReceipt} voidSlip={view.voidSlip} canReprint={canReprint} onDone={() => setView(null)} />
 
   return (
     <div className="mx-auto max-w-4xl p-4">
@@ -104,9 +105,9 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
                         {s.void_pending && !s.voided_at && <div className="text-base font-semibold text-amber-300">Void waiting for the manager</div>}
                       </div>
                       {s.voided_at
-                        ? <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, [s], true), hideReceipt: true })}>Print VOID slip</Btn>
+                        ? <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, [s], true), hideReceipt: true, voidSlip: true })}>Print VOID slip</Btn>
                         : <>
-                            <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, [s]), hideReceipt: true })}>Reprint slip</Btn>
+                            {canReprint && <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, [s]), hideReceipt: true })}>Reprint slip</Btn>}
                             {canVoid && !s.void_pending && <Btn kind="danger" className="!h-12 !text-base" onClick={() => { setVoidFor({ kind: 'slip', slip: s }); setReason('') }}>Void whole slip</Btn>}
                           </>}
                     </div>
@@ -120,7 +121,7 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
                           {l.voided
                             ? <>
                                 <span className="text-base font-semibold text-red-400">VOIDED{l.void_reason ? ` · ${l.void_reason}` : ''}</span>
-                                {!s.voided_at && <Btn kind="ghost" className="!h-10 !text-base" onClick={() => setView({ sale: toSale(o, [s], true, [l]), hideReceipt: true })}>Print VOID slip</Btn>}
+                                {!s.voided_at && <Btn kind="ghost" className="!h-10 !text-base" onClick={() => setView({ sale: toSale(o, [s], true, [l]), hideReceipt: true, voidSlip: true })}>Print VOID slip</Btn>}
                               </>
                             : canVoidItem && !s.voided_at && !s.void_pending &&
                               <Btn kind="danger" className="!h-10 !text-base" onClick={() => { setVoidFor({ kind: 'item', slip: s, line: l }); setReason('') }}>Void item</Btn>}
@@ -132,7 +133,7 @@ export default function MyOrders({ profile, onDone }: { profile: Profile; onDone
               </div>
               {live.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, o.slips), hideReceipt: false })}>Reprint receipt</Btn>
+                  {canReprint && <Btn kind="ghost" className="!h-12 !text-base" onClick={() => setView({ sale: toSale(o, o.slips), hideReceipt: false })}>Reprint receipt</Btn>}
                   {canVoid && <Btn kind="danger" className="!h-12 !text-base" onClick={() => { setVoidFor({ kind: 'order', order: o }); setReason('') }}>Void whole receipt</Btn>}
                 </div>)}
             </div>
