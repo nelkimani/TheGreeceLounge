@@ -2,6 +2,7 @@
 // when no USB printer is connected.
 import { Sale, SaleSlip, STATION_LABEL, receiptLines, receiptTotal } from './sale'
 import { kes } from './lib'
+import { PAY_INFO } from './escpos'
 
 const row = 'flex justify-between gap-2'
 const head = (s: Sale) => (
@@ -24,6 +25,10 @@ export function ReceiptPreview({ sale }: { sale: Sale }) {
       ))}
       <hr className="my-1 border-black" />
       <div className={`${row} text-xs font-bold`}><span>TOTAL</span><span>{kes(receiptTotal(sale))}</span></div>
+      <div className="mt-1 text-center font-bold">
+        <div>PAYBILL {PAY_INFO.paybill}</div>
+        <div>ACCOUNT NO. {PAY_INFO.account}</div>
+      </div>
       <div className="mt-1 text-center">Thank you</div>
       <div className="text-center text-[10px]">Powered by Mvule Technologies</div>
     </div>
