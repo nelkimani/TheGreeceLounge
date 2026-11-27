@@ -9,6 +9,9 @@ let paperCols = COLS
 export const setPaperCols = (n: number) => { paperCols = n }
 export const getPaperCols = () => paperCols
 
+// Shown on every customer receipt / bill so guests can pay by M-Pesa.
+export const PAY_INFO = { paybill: '247247', account: '888243' }
+
 export type SlipRow = { left: string; right?: string; bold?: boolean }
 export type SlipData = {
   heading: string
@@ -95,6 +98,7 @@ export function encodeSlip(d: SlipData, now: Date = new Date()): Uint8Array {
     for (const t of twoColumn(r.left, r.right)) line(t)
   }
   bold(false)
+  align(1); line(); bold(true); line(`PAYBILL ${PAY_INFO.paybill}`); line(`ACCOUNT NO. ${PAY_INFO.account}`); bold(false); align(0)
   if (d.footer) { align(1); line(); line(clean(d.footer)); align(0) }
   align(1); line(); line('Powered by Mvule Technologies'); align(0)
 

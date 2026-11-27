@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { kes } from './lib'
-import type { SlipRow } from './escpos'
+import { PAY_INFO, type SlipRow } from './escpos'
 
 export type BillLine = {
   item_id: string; product_name: string; qty: number; unit_price: number; line_total: number; status: string
@@ -38,6 +38,10 @@ export function Slip({ heading, notReceipt, label, waiter, lines, total, childre
       <hr className="my-1 border-black" />
       <div className={`${row} text-xs font-bold`}><span>TOTAL</span><span>{kes(total)}</span></div>
       {children}
+      <div className="mt-1 text-center font-bold">
+        <div>PAYBILL {PAY_INFO.paybill}</div>
+        <div>ACCOUNT NO. {PAY_INFO.account}</div>
+      </div>
       <div className="mt-1 text-center text-[10px]">Powered by Mvule Technologies</div>
     </div>
   )
